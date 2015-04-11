@@ -30,7 +30,7 @@ manager.add_command('db', MigrateCommand)
 class Curb(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     sidewalk_objectid = db.Column(db.Integer)
-    geom = db.Column(db.String(16))
+    geom = db.Column(db.String(1024))
     # It's a 2-tuple of coordinates, not sure how to store this without
     # making another table. For now, just storing JSON directly.
     # If this were just like geoJSON, this would be in a properties table
@@ -45,7 +45,7 @@ class Curb(db.Model):
 class SidewalkElevation(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     sidewalk_objectid = db.Column(db.Integer)
-    geom = db.Column(db.String(16))
+    geom = db.Column(db.String(1024))
     grade = db.Column(db.Float)
 
     def __init__(self, sidewalk_objectid, coords, grade):
