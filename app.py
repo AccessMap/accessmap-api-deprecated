@@ -7,8 +7,11 @@ from flask_restful import Api, Resource
 # from geoalchemy2 import Geometry
 # from geoalchemy2.shape import to_shape
 
-from shapely import geometry
-from shapely import wkt
+# import os
+# os.environ["GEOS_LIBRARY_PATH"] = "/homes/gws/bolten/local_install/lib/libgeos_c.so"
+# print os.environ
+
+from geomet import wkt
 
 
 app = Flask(__name__, instance_relative_config=True)
@@ -38,7 +41,7 @@ class Curb(db.Model):
 
     def __init__(self, sidewalk_objectid, point, angle):
         self.sidewalk_objectid = sidewalk_objectid
-        self.geom = geometry.Point(point).to_wkt()
+	self.geom = wkt.dumps(point)
         self.angle = angle
 
 
@@ -48,9 +51,9 @@ class SidewalkElevation(db.Model):
     geom = db.Column(db.String(16))
     grade = db.Column(db.Float)
 
-    def __init__(self, sidewalk_objectid, coords, grade):
+    def __init__(self, sidewalk_objectid, linestring, grade):
         self.sidewalk_objectid = sidewalk_objectid
-        self.geom = geometry.LineString(coords).to_wkt()
+        self.geom = wkt.dumps(linestring)
         self.grade = grade
 
 
@@ -61,7 +64,7 @@ class SidewalkElevationsAPI(Resource):
         for row in results:
             result_dict = {
                 'type': 'LineString',
-                'coordinates': list(wkt.loads(row.geom).coords),
+                'coordinates': list(wkt.loads(row.geom)["coordinates"]),
                 'properties': {
                     'sidewalk_objectid': row.sidewalk_objectid,
                     'grade': row.grade
@@ -78,7 +81,7 @@ class CurbsAPI(Resource):
         for row in results:
             result_dict = {
                 'type': 'Point',
-                'coordinates': list(wkt.loads(row.geom).coords),
+                'coordinates': list(wkt.loads(row.geom)["coordinates"]),
                 'properties': {
                     'sidewalk_objectid': row.sidewalk_objectid,
                     'angle': row.angle
@@ -90,6 +93,11 @@ class CurbsAPI(Resource):
 
 api.add_resource(SidewalkElevationsAPI, '/sidewalks.json')
 api.add_resource(CurbsAPI, '/curbs.json')
+
+
+@app.route("/")
+def index():
+    return "Hackcessible API site - access is secret!"
 
 
 if __name__ == '__main__':
