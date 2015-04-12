@@ -1,13 +1,13 @@
 """empty message
 
-Revision ID: 27c909d53947
+Revision ID: 1a4365c7a673
 Revises: None
-Create Date: 2015-04-08 20:36:09.921213
+Create Date: 2015-04-11 18:19:44.527083
 
 """
 
 # revision identifiers, used by Alembic.
-revision = '27c909d53947'
+revision = '1a4365c7a673'
 down_revision = None
 
 from alembic import op
@@ -19,14 +19,14 @@ def upgrade():
     op.create_table('sidewalk_elevation',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('sidewalk_objectid', sa.Integer(), nullable=True),
-    sa.Column('geom', sa.String(length=16), nullable=True),
+    sa.Column('wkt', sa.String(length=1024), nullable=True),
     sa.Column('grade', sa.Float(), nullable=True),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_table('curb',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('sidewalk_objectid', sa.Integer(), nullable=True),
-    sa.Column('geom', sa.String(length=16), nullable=True),
+    sa.Column('wkt', sa.String(length=1024), nullable=True),
     sa.Column('angle', sa.Float(), nullable=True),
     sa.PrimaryKeyConstraint('id')
     )

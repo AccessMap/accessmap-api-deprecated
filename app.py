@@ -4,13 +4,6 @@ from flask.ext.script import Manager
 from flask.ext.migrate import Migrate, MigrateCommand
 from flask_restful import Api, Resource
 
-# from geoalchemy2 import Geometry
-# from geoalchemy2.shape import to_shape
-
-# import os
-# os.environ["GEOS_LIBRARY_PATH"] = "/homes/gws/bolten/local_install/lib/libgeos_c.so"
-# print os.environ
-
 from geomet import wkt
 
 
@@ -33,28 +26,28 @@ manager.add_command('db', MigrateCommand)
 class Curb(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     sidewalk_objectid = db.Column(db.Integer)
-    geom = db.Column(db.String(1024))
+    wkt = db.Column(db.String(1024))
     # It's a 2-tuple of coordinates, not sure how to store this without
     # making another table. For now, just storing JSON directly.
     # If this were just like geoJSON, this would be in a properties table
     angle = db.Column(db.Float)
 
-    def __init__(self, sidewalk_objectid, point, angle):
-        self.sidewalk_objectid = sidewalk_objectid
-	self.geom = wkt.dumps(point)
-        self.angle = angle
+    def __init__(self, geojson):
+        self.sidewalk_objectid = geojson['properties']['sidewalk_objectid']
+        self.wkt = wkt.dumps(geojson)
+        self.angle = geojson['properties']['angle']
 
 
 class SidewalkElevation(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     sidewalk_objectid = db.Column(db.Integer)
-    geom = db.Column(db.String(1024))
+    wkt = db.Column(db.String(1024))
     grade = db.Column(db.Float)
 
-    def __init__(self, sidewalk_objectid, linestring, grade):
-        self.sidewalk_objectid = sidewalk_objectid
-        self.geom = wkt.dumps(linestring)
-        self.grade = grade
+    def __init__(self, geojson):
+        self.sidewalk_objectid = geojson['properties']['sidewalk_objectid']
+        self.wkt = wkt.dumps(geojson)
+        self.grade = geojson['properties']['grade']
 
 
 class SidewalkElevationsAPI(Resource):
@@ -64,7 +57,7 @@ class SidewalkElevationsAPI(Resource):
         for row in results:
             result_dict = {
                 'type': 'LineString',
-                'coordinates': list(wkt.loads(row.geom)["coordinates"]),
+                'coordinates': list(wkt.loads(row.wkt)["coordinates"]),
                 'properties': {
                     'sidewalk_objectid': row.sidewalk_objectid,
                     'grade': row.grade
@@ -81,7 +74,7 @@ class CurbsAPI(Resource):
         for row in results:
             result_dict = {
                 'type': 'Point',
-                'coordinates': list(wkt.loads(row.geom)["coordinates"]),
+                'coordinates': list(wkt.loads(row.wkt)["coordinates"]),
                 'properties': {
                     'sidewalk_objectid': row.sidewalk_objectid,
                     'angle': row.angle
