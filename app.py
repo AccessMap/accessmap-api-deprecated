@@ -54,6 +54,17 @@ class SidewalkElevation(db.Model):
         self.grade = geojson["properties"]["grade"]
 
 
+# Flask-RESTful content
+# CORS responses
+@app.after_request
+def after_request(response):
+    response.headers.add("Access-Control-Allow-Origin", "*")
+    response.headers.add("Access-Control-Allow-Headers",
+                         "Content-Type,Authorization")
+    response.headers.add("Access-Control-Allow-Methods", "GET")
+
+    return response
+
 parser = reqparse.RequestParser()
 # I think it's a string? [lon1,lat1,lon2,lat2]
 parser.add_argument("bbox", type=str)
