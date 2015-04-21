@@ -5,3 +5,4 @@ Flask-SQLAlchemy==2.0
 Flask-Script==2.0.5
 MySQL-python==1.2.5
 -e git://github.com/larsbutler/geomet.git@e336e1986603bbab72e44f3254e3b6774d9b1832#egg=geomet
+-e git://github.com/anthonypt87/geoalchemy.git@d5b5af1d7ed502e9a6aa0862e902c19a45dd09dd#egg=GeoAlchemy
