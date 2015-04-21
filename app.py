@@ -38,7 +38,7 @@ class Curb(db.Model):
 
     def __init__(self, geojson):
         self.sidewalk_objectid = geojson["properties"]["sidewalk_objectid"]
-        self.coordinates = wkt.dumps(geojson, decimals=6)
+        self.coordinates = wkt.dumps(geojson)
         self.angle = geojson["properties"]["angle"]
 
 
@@ -50,7 +50,7 @@ class SidewalkElevation(db.Model):
 
     def __init__(self, geojson):
         self.sidewalk_objectid = geojson["properties"]["sidewalk_objectid"]
-        self.coordinates = wkt.dumps(geojson["geometry"], decimals=4)
+        self.coordinates = wkt.dumps(geojson["geometry"])
         self.grade = geojson["properties"]["grade"]
 
 
