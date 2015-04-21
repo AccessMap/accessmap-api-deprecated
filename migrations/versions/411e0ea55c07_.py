@@ -1,17 +1,18 @@
 """empty message
 
-Revision ID: 1a4365c7a673
+Revision ID: 411e0ea55c07
 Revises: None
-Create Date: 2015-04-11 18:19:44.527083
+Create Date: 2015-04-20 14:14:55.853461
 
 """
 
 # revision identifiers, used by Alembic.
-revision = '1a4365c7a673'
+revision = '411e0ea55c07'
 down_revision = None
 
 from alembic import op
 import sqlalchemy as sa
+import geoalchemy
 
 
 def upgrade():
@@ -19,14 +20,14 @@ def upgrade():
     op.create_table('sidewalk_elevation',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('sidewalk_objectid', sa.Integer(), nullable=True),
-    sa.Column('wkt', sa.String(length=1024), nullable=True),
+    sa.Column('coordinates', geoalchemy.geometry.LineString(), nullable=True),
     sa.Column('grade', sa.Float(), nullable=True),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_table('curb',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('sidewalk_objectid', sa.Integer(), nullable=True),
-    sa.Column('wkt', sa.String(length=1024), nullable=True),
+    sa.Column('coordinates', geoalchemy.geometry.Point(), nullable=True),
     sa.Column('angle', sa.Float(), nullable=True),
     sa.PrimaryKeyConstraint('id')
     )
