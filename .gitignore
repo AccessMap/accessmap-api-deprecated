@@ -9,7 +9,6 @@
 *.tox
 *~
 *.mo
-*.wsgi
 
 *.db
 *.sqlite
