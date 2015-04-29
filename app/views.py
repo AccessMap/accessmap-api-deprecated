@@ -1,7 +1,7 @@
 from flask_restful import Api, Resource, reqparse
 from geomet import wkt
 
-from .models import Curb, SidewalkElevation
+from .models import Curb, Permit, SidewalkElevation
 from . import db
 from . import app
 
@@ -15,6 +15,9 @@ N_RESULTS_DEFAULT = 100
 parser = reqparse.RequestParser()
 # I think it's a string? [lon1,lat1,lon2,lat2]
 parser.add_argument("bbox", type=str)
+
+# TODO: The classes below have a lot of redundancies - we should eventually
+# use something like factories for our geoJSON exchange functionality
 
 
 class CurbsAPI(Resource):
@@ -34,6 +37,32 @@ class CurbsAPI(Resource):
                 "properties": {
                     "sidewalk_objectid": row.sidewalk_objectid,
                     "angle": row.angle
+                }
+            }
+            jsoned.append(result_dict)
+        return jsoned
+
+
+class PermitsAPI(Resource):
+    def get(self):
+        args = parser.parse_args()
+        if args['bbox']:
+            bbox = [float(point) for point in args["bbox"].split(",")]
+            results = bbox_filter(Permit, bbox)
+        else:
+            results = Permit.query.limit(N_RESULTS_DEFAULT)
+        jsoned = []
+        for row in results:
+            geom = wkt.loads(db.session.scalar(row.coordinates.wkt))
+            result_dict = {
+                "type": geom["type"],
+                "coordinates": geom["coordinates"],
+                "properties": {
+                    "objectid": row.objectid,
+                    "permit_no": row.permit_no,
+                    "mobility_impact_text": row.mobility_impact_text,
+                    "permit_address_text": row.permit_address_text,
+                    "applicant_name": row.applicant_name
                 }
             }
             jsoned.append(result_dict)
@@ -90,5 +119,6 @@ def index():
     return "Hackcessible API site - access is secret!"
 
 
-api.add_resource(SidewalkElevationsAPI, "/sidewalks.json")
 api.add_resource(CurbsAPI, "/curbs.json")
+api.add_resource(PermitsAPI, "/permits.json")
+api.add_resource(SidewalkElevationsAPI, "/sidewalks.json")
