@@ -9,7 +9,6 @@ params = {"$where": "sidewalk_close_end_date > '2015-04-28'",
           "sidewalk_closed_flag": "Y",
           "$limit": 50000}
 
-# r = requests.get("https://data.seattle.gov/resource/czy3-hkh9",
 r = requests.get("https://data.seattle.gov/resource/w47m-dg37",
                  params=params,
                  headers={"X-App-Token": SOCRATA_KEY})
