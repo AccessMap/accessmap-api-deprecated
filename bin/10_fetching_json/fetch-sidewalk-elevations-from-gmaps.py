@@ -4,7 +4,7 @@ import requests
 from polyline.codec import PolylineCodec
 
 ELEVATION_KEY = 'AIzaSyBmks7o9iSjRrcrzrpRcFQl5fqv9xVxHg8'
-ELEVATION_KEY = 'AIzaSyDmjcUk7KbKVEo79W2-vYnYgOYKQ7C8Gm8'
+# ELEVATION_KEY = 'AIzaSyDmjcUk7KbKVEo79W2-vYnYgOYKQ7C8Gm8'
 ELEVATION_URL = 'https://maps.googleapis.com/maps/api/elevation/json'
 
 

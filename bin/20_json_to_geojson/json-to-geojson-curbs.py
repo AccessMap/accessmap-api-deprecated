@@ -15,6 +15,8 @@ def geojsonify(raw_json):
     #       'sidewalk_objectid': the objectid of the sidewalk for relationships
     #    }
 
+    # FIXME: lon and lat are not equivalent distances - need to convert to
+    # meters first *or* make a lat-lon vector instead.
     def angle(lon1, lat1, lon2, lat2):
         dlon = lon2 - lon1
         dlat = lat2 - lat1
