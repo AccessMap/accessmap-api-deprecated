@@ -111,6 +111,6 @@ def index():
     return "Hackcessible API site - access is secret!"
 
 
-api.add_resource(CurbsAPI, "/curbs.json")
-api.add_resource(PermitsAPI, "/permits.json")
-api.add_resource(SidewalkGradesAPI, "/sidewalks.json")
+api.add_resource(CurbsAPI, "/curbs.geojson")
+api.add_resource(PermitsAPI, "/permits.geojson")
+api.add_resource(SidewalkGradesAPI, "/sidewalks.geojson")
