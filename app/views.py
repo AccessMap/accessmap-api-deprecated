@@ -1,7 +1,8 @@
 from flask_restful import Api, Resource, reqparse
-from geomet import wkt
+import geojson
+from shapely import geometry
 
-from .models import Curb, Permit, SidewalkElevation
+from .models import Curb, Permit, SidewalkGrade
 from . import db
 from . import app
 
@@ -25,22 +26,20 @@ class CurbsAPI(Resource):
         args = parser.parse_args()
         if args['bbox']:
             bbox = [float(point) for point in args["bbox"].split(",")]
-            results = bbox_filter(Curb, bbox)
+            query = bbox_filter(Curb, bbox)
         else:
-            results = Curb.query.limit(N_RESULTS_DEFAULT)
-        jsoned = []
-        for row in results:
-            geom = wkt.loads(db.session.scalar(row.coordinates.wkt))
-            result_dict = {
-                "type": geom["type"],
-                "coordinates": geom["coordinates"],
-                "properties": {
-                    "sidewalk_objectid": row.sidewalk_objectid,
-                    "angle": row.angle
-                }
-            }
-            jsoned.append(result_dict)
-        return jsoned
+            query = Curb.query.limit(N_RESULTS_DEFAULT)
+
+        curb_list = []
+        for row in query:
+            geom = geojson.loads(db.session.scalar(row.geom.ST_AsGeoJSON()))
+            props = {"sidewalk_objectid": row.sidewalk_objectid,
+                     "angle": row.angle}
+            curb = geojson.Feature(geometry=geom, properties=props)
+            curb_list.append(curb)
+
+        curb_fc = geojson.FeatureCollection(curb_list)
+        return curb_fc
 
 
 class PermitsAPI(Resource):
@@ -48,70 +47,63 @@ class PermitsAPI(Resource):
         args = parser.parse_args()
         if args['bbox']:
             bbox = [float(point) for point in args["bbox"].split(",")]
-            results = bbox_filter(Permit, bbox)
+            query = bbox_filter(Permit, bbox)
         else:
-            results = Permit.query.limit(N_RESULTS_DEFAULT)
-        jsoned = []
-        for row in results:
-            geom = wkt.loads(db.session.scalar(row.coordinates.wkt))
-            result_dict = {
-                "type": geom["type"],
-                "coordinates": geom["coordinates"],
-                "properties": {
-                    "objectid": row.objectid,
-                    "permit_no": row.permit_no,
-                    "mobility_impact_text": row.mobility_impact_text,
-                    "permit_address_text": row.permit_address_text,
-                    "applicant_name": row.applicant_name
-                }
-            }
-            jsoned.append(result_dict)
-        return jsoned
+            query = Permit.query.limit(N_RESULTS_DEFAULT)
+
+        permits_list = []
+        for row in query:
+            geom = geojson.loads(db.session.scalar(row.geom.ST_AsGeoJSON()))
+            props = {"objectid": row.objectid,
+                     "permit_no": row.permit_no,
+                     "mobility_impact_text": row.mobility_impact_text,
+                     "permit_address_text": row.permit_address_text,
+                     "applicant_name": row.applicant_name}
+            permit = geojson.Feature(geometry=geom, properties=props)
+            permits_list.append(permit)
+
+        permits_fc = geojson.FeatureCollection(permits_list)
+        return permits_fc
 
 
-class SidewalkElevationsAPI(Resource):
+class SidewalkGradesAPI(Resource):
     def get(self):
         args = parser.parse_args()
         if args['bbox']:
             bbox = [float(point) for point in args["bbox"].split(",")]
-            results = bbox_filter(SidewalkElevation, bbox)
+            query = bbox_filter(SidewalkGrade, bbox)
         else:
-            results = SidewalkElevation.query.limit(N_RESULTS_DEFAULT)
-            print N_RESULTS_DEFAULT
-        jsoned = []
-        for row in results:
-            geom = wkt.loads(db.session.scalar(row.coordinates.wkt))
-            result_dict = {
-                "type": geom["type"],
-                "coordinates": geom["coordinates"],
-                "properties": {
-                    "sidewalk_objectid": row.sidewalk_objectid,
-                    "grade": row.grade
-                }
-            }
-            jsoned.append(result_dict)
-        return jsoned
+            query = SidewalkGrade.query.limit(N_RESULTS_DEFAULT)
+
+        sidewalk_grades_list = []
+        for row in query:
+            geom = geojson.loads(db.session.scalar(row.geom.ST_AsGeoJSON()))
+            props = {"sidewalk_objectid": row.sidewalk_objectid,
+                     "grade": row.grade}
+            sidewalk_grade = geojson.Feature(geometry=geom, properties=props)
+
+            sidewalk_grades_list.append(sidewalk_grade)
+
+        sidewalk_grades_fc = geojson.FeatureCollection(sidewalk_grades_list)
+        return sidewalk_grades_fc
 
 
 def bbox_filter(table, bbox):
     """Table is actual table object, bbox is of the form
     [lon1, lat1, lon2, lat2]
 
+    Returns rows as a list
+
     """
+    # TODO: Make this faster
     # Generate the polygon for the bounding box
     coords = [[bbox[0], bbox[1]], [bbox[0], bbox[3]], [bbox[2], bbox[3]],
               [bbox[2], bbox[1]], [bbox[0], bbox[1]]]
-    wkt_polygon = wkt.dumps({'type': 'Polygon', 'coordinates': [coords]},
-                            decimals=6)
-    print wkt_polygon
+    box = geometry.Polygon(coords)
 
-    # Query the database and return the result
-    query = db.session.query(table)
-    filtered = query.filter(table.coordinates.intersects(wkt_polygon))
-    resolved = [x for x in filtered]
-    print len(resolved)
+    filtered = table.query.filter(table.geom.intersects(box.to_wkt()))
 
-    return resolved
+    return list(filtered)
 
 
 @app.route("/")
@@ -121,4 +113,4 @@ def index():
 
 api.add_resource(CurbsAPI, "/curbs.json")
 api.add_resource(PermitsAPI, "/permits.json")
-api.add_resource(SidewalkElevationsAPI, "/sidewalks.json")
+api.add_resource(SidewalkGradesAPI, "/sidewalks.json")

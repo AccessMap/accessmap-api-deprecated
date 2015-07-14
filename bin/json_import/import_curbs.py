@@ -1,5 +1,6 @@
 import json
-from app import db, Curb
+from app import db
+from app.models import Curb
 
 
 # Expect a list of geojsons in the file
