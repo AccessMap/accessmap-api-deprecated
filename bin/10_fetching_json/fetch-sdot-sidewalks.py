@@ -7,7 +7,7 @@ SOCRATA_KEY = "HyursDSMdzrAfLroxKO1rztA5"
 
 params = {"$limit": 50000}
 
-r = requests.get("https://data.seattle.gov/resource/pxgh-b4sz.json",
+r = requests.get("http://data.seattle.gov/resource/pxgh-b4sz.json",
                  params=params,
                  headers={"X-App-Token": SOCRATA_KEY})
 

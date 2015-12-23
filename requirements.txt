@@ -7,5 +7,6 @@ GeoAlchemy2==0.2.5
 SQLAlchemy==0.9.9
 Shapely==1.5.7
 geojson==1.2.2
+psycopg2==2.6.1
 requests==2.6.2
 -e git://github.com/larsbutler/geomet.git@e336e1986603bbab72e44f3254e3b6774d9b1832#egg=geomet
