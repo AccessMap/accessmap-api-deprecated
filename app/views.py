@@ -2,8 +2,8 @@ from flask_restful import Api, Resource, reqparse
 import geojson
 from shapely import geometry
 
-from .models import Curb, Permit, SidewalkGrade
-from . import db
+# from . import db
+from . import database as db
 from . import app
 
 
@@ -26,44 +26,25 @@ class CurbsAPI(Resource):
         args = parser.parse_args()
         if args['bbox']:
             bbox = [float(point) for point in args["bbox"].split(",")]
-            query = bbox_filter(Curb, bbox)
+            query = bbox_filter(db.raw_curbramps, bbox)
         else:
-            query = Curb.query.limit(N_RESULTS_DEFAULT)
+            query = db.raw_curbramps.select().limit(N_RESULTS_DEFAULT)
 
-        curb_list = []
-        for row in query:
-            geom = geojson.loads(db.session.scalar(row.geom.ST_AsGeoJSON()))
-            props = {"sidewalk_objectid": row.sidewalk_objectid,
-                     "angle": row.angle}
+        executed = db.engine.execute(query)
+        curbs = []
+        for row in executed:
+            raw_geojson = db.engine.execute(row.geom.ST_AsGeoJSON()).fetchone()
+            geom = geojson.loads(raw_geojson[0])
+            props = {"id": int(row.id)}
             curb = geojson.Feature(geometry=geom, properties=props)
-            curb_list.append(curb)
+            curbs.append(curb)
 
-        curb_fc = geojson.FeatureCollection(curb_list)
-        return curb_fc
-
-
-class PermitsAPI(Resource):
-    def get(self):
-        args = parser.parse_args()
-        if args['bbox']:
-            bbox = [float(point) for point in args["bbox"].split(",")]
-            query = bbox_filter(Permit, bbox)
-        else:
-            query = Permit.query.limit(N_RESULTS_DEFAULT)
-
-        permits_list = []
-        for row in query:
-            geom = geojson.loads(db.session.scalar(row.geom.ST_AsGeoJSON()))
-            props = {"objectid": row.objectid,
-                     "permit_no": row.permit_no,
-                     "mobility_impact_text": row.mobility_impact_text,
-                     "permit_address_text": row.permit_address_text,
-                     "applicant_name": row.applicant_name}
-            permit = geojson.Feature(geometry=geom, properties=props)
-            permits_list.append(permit)
-
-        permits_fc = geojson.FeatureCollection(permits_list)
-        return permits_fc
+        curbs_fc = geojson.FeatureCollection(curbs)
+        print 'here'
+        print curbs
+        print curbs_fc
+        print 'here2'
+        return curbs_fc
 
 
 class SidewalkGradesAPI(Resource):
@@ -71,21 +52,22 @@ class SidewalkGradesAPI(Resource):
         args = parser.parse_args()
         if args['bbox']:
             bbox = [float(point) for point in args["bbox"].split(",")]
-            query = bbox_filter(SidewalkGrade, bbox)
+            query = bbox_filter(db.raw_sidewalks, bbox)
         else:
-            query = SidewalkGrade.query.limit(N_RESULTS_DEFAULT)
+            query = db.raw_sidewalks.select().limit(N_RESULTS_DEFAULT)
 
-        sidewalk_grades_list = []
-        for row in query:
-            geom = geojson.loads(db.session.scalar(row.geom.ST_AsGeoJSON()))
-            props = {"sidewalk_objectid": row.sidewalk_objectid,
-                     "grade": row.grade}
-            sidewalk_grade = geojson.Feature(geometry=geom, properties=props)
+        executed = db.engine.execute(query)
+        sidewalks = []
+        for row in executed:
+            raw_geojson = db.engine.execute(row.geom.ST_AsGeoJSON()).fetchone()
+            geom = geojson.loads(raw_geojson[0])
+            props = {"id": row.id}
+            sidewalk = geojson.Feature(geometry=geom, properties=props)
 
-            sidewalk_grades_list.append(sidewalk_grade)
+            sidewalks.append(sidewalk)
 
-        sidewalk_grades_fc = geojson.FeatureCollection(sidewalk_grades_list)
-        return sidewalk_grades_fc
+        sidewalks_fc = geojson.FeatureCollection(sidewalks)
+        return sidewalks_fc
 
 
 def bbox_filter(table, bbox):
@@ -101,9 +83,9 @@ def bbox_filter(table, bbox):
               [bbox[2], bbox[1]], [bbox[0], bbox[1]]]
     box = geometry.Polygon(coords)
 
-    filtered = table.query.filter(table.geom.intersects(box.to_wkt()))
+    filtered = table.select().where(table.geom.intersects(box.to_wkt()))
 
-    return list(filtered)
+    return filtered
 
 
 @app.route("/")
@@ -111,6 +93,5 @@ def index():
     return "Hackcessible API site - access is secret!"
 
 
-api.add_resource(CurbsAPI, "/raw-curbs.geojson")
-api.add_resource(PermitsAPI, "/raw-permits.geojson")
+api.add_resource(CurbsAPI, "/raw-curbramps.geojson")
 api.add_resource(SidewalkGradesAPI, "/raw-sidewalks.geojson")
