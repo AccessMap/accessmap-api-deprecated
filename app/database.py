@@ -6,16 +6,15 @@ from app import engine
 meta = MetaData()
 
 # (Raw) curbramps table
-raw_curbramps = Table('curbramps', meta,
-                      Column('id', Numeric, primary_key=True),
-                      Column('geom', Geometry),
-                      schema='data')
+curbramps_data = Table('curbramps_data', meta,
+                       Column('id', Numeric, primary_key=True),
+                       Column('geom', Geometry))
 
 # (Raw) sidewalks table
-raw_sidewalks = Table('sidewalks', meta,
-                      Column('id', Integer, primary_key=True),
-                      Column('geom', Geometry),
-                      schema='data')
+sidewalks_data = Table('sidewalks_data', meta,
+                       Column('id', Integer, primary_key=True),
+                       Column('geom', Geometry),
+                       Column('grade', Numeric))
 
 # raw_curbramps = Table('curbramps', meta, schema='data', autoload=True,
 #                       autoload_with=engine)

@@ -1,5 +1,4 @@
 from flask import Flask
-from flask.ext.sqlalchemy import SQLAlchemy
 from sqlalchemy import create_engine
 from sqlalchemy.engine.url import URL
 
@@ -23,8 +22,6 @@ def after_request(response):
 
     return response
 
-
-db = SQLAlchemy(app)
 
 conn_url = URL('postgresql', app.config['DB_USER'], app.config['DB_PASS'],
                app.config['DB_HOST'], app.config['DB_PORT'],
