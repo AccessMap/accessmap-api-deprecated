@@ -83,7 +83,7 @@ def bbox_filter(table, bbox):
               [bbox[2], bbox[1]], [bbox[0], bbox[1]]]
     box = geometry.Polygon(coords)
 
-    filtered = table.select().where(table.geom.intersects(box.to_wkt()))
+    filtered = table.select().where(table.c.geom.intersects(box.to_wkt()))
 
     return filtered
 
