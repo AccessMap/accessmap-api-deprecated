@@ -1,14 +1,22 @@
 from flask import Flask
+import os
 from sqlalchemy import create_engine
 from sqlalchemy.engine.url import URL
 
 app = Flask(__name__, instance_relative_config=True)
-app.config.from_object("config")
+try:
+    app.config.from_object("config")
+except:
+    pass
 # Get instance config (hidden from git, is in app dir/instance/config.py)
 try:
     app.config.from_pyfile("config.py")
 except IOError:
     pass
+envvars = ['DB_NAME', 'DB_HOST', 'DB_PORT', 'DB_USER', 'DB_PASS']
+for envvar in envvars:
+    if envvar in os.environ:
+        app.config[envvar] = os.environ[envvar]
 # FIXME: put user and pass in a config for production
 # Get default config (main app dir config.py)
 
