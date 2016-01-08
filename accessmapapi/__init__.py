@@ -5,7 +5,10 @@ from sqlalchemy.engine.url import URL
 app = Flask(__name__, instance_relative_config=True)
 app.config.from_object("config")
 # Get instance config (hidden from git, is in app dir/instance/config.py)
-app.config.from_pyfile("config.py")
+try:
+    app.config.from_pyfile("config.py")
+except IOError:
+    pass
 # FIXME: put user and pass in a config for production
 # Get default config (main app dir config.py)
 

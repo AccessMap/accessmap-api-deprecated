@@ -1,6 +1,9 @@
 # Editor files
 ~*
 
+# Flask app config files
+instance/*
+
 # Python cache
 __pycache__/
 *.pyc
