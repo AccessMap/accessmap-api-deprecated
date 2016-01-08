@@ -12,7 +12,9 @@ app.config.from_pyfile("config.py")
 # Enables debug traceback for logging
 app.config['PROPAGATE_EXCEPTIONS'] = True
 
+
 # CORS responses
+# FIXME: re-enable CORS soon
 @app.after_request
 def after_request(response):
     response.headers.add("Access-Control-Allow-Origin", "*")
@@ -29,4 +31,4 @@ conn_url = URL('postgresql', app.config['DB_USER'], app.config['DB_PASS'],
 
 engine = create_engine(conn_url, convert_unicode=True)
 
-from . import views
+from . import urls
