@@ -1,8 +1,8 @@
 from flask_restful import Resource, reqparse
 import geojson
 
-from app import database as db
-from app.sql_utils import bbox_filter
+from accessmapapi import database as db
+from accessmapapi.sql_utils import bbox_filter
 
 
 # Default query limit if no params are offered
@@ -13,15 +13,18 @@ parser = reqparse.RequestParser()
 # I think it's a string? [lon1,lat1,lon2,lat2]
 parser.add_argument('bbox', type=str)
 
+# TODO: The classes below have a lot of redundancies - we should eventually
+# use something like factories for our geoJSON exchange functionality
 
-class SidewalksV1(Resource):
+
+class CrossingsV2(Resource):
     def get(self):
         args = parser.parse_args()
         if args['bbox']:
             bbox = [float(point) for point in args['bbox'].split(',')]
-            query = bbox_filter(db.sidewalks_data, bbox)
+            query = bbox_filter(db.crossings, bbox)
         else:
-            query = db.sidewalks_data.select().limit(N_RESULTS_DEFAULT)
+            query = db.crossings.select().limit(N_RESULTS_DEFAULT)
 
         executed = db.engine.execute(query)
         sidewalks = []

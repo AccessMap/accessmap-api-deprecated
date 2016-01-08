@@ -2,7 +2,7 @@ from sqlalchemy import MetaData, Table, Column, Integer, Float
 from geoalchemy2 import Geometry
 
 
-from app import engine
+from accessmapapi import engine
 
 meta = MetaData()
 

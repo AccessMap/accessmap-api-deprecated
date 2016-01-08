@@ -1,8 +1,8 @@
 from flask_restful import Resource, reqparse
 import geojson
 
-from app import database as db
-from app.sql_utils import bbox_filter
+from accessmapapi import database as db
+from accessmapapi.sql_utils import bbox_filter
 
 
 # Default query limit if no params are offered

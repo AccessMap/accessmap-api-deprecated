@@ -1,28 +1,37 @@
-*.egg-info
-*.log
+# Editor files
+~*
+
+# Python cache
+__pycache__/
 *.pyc
-*.db
-*.swp
-*.swo
-*.zip
-*.cfg
-*.tox
-*~
-*.mo
 
-*.db
-*.sqlite
+# PTVS analysis
+.ptvs/
 
-*.json
-*.geojson
+# Build results
+/bin/
+/obj/
 
-dist
-build
+# User-specific files
+*.suo
+*.user
+*.sln.docstates
 
-instance
-production.py
-logs
-uploads
-openid
+# Auto-generated virtual environment
+/env/
 
-venv
+# Auto-generated web.config
+/web.config
+
+# Windows image file caches
+Thumbs.db
+ehthumbs.db
+
+# Folder config file
+Desktop.ini
+
+# Recycle Bin used on file shares
+$RECYCLE.BIN/
+
+# Mac desktop service store files
+.DS_Store
