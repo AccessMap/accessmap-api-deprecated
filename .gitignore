@@ -32,3 +32,6 @@ $RECYCLE.BIN/
 
 # Mac desktop service store files
 .DS_Store
+
+# Environment variable setter
+set_env.sh
