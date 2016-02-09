@@ -1,7 +1,6 @@
 '''The flask application package.'''
 from flask import Flask
 from flask.ext.sqlalchemy import SQLAlchemy
-from geoalchemy2 import Geometry
 import os
 
 
