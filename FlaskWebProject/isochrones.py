@@ -1,7 +1,7 @@
 from . import db
 import geojson
 import json
-# import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 import numpy as np
 from scipy.interpolate import griddata
 
