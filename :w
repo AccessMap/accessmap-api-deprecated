@@ -93,6 +93,6 @@ def routev2():
     waypoints = zip(waypoints_input_list[0::2], waypoints_input_list[1::2])
 
     # request route
-    route_response = routing.routing_request(list(waypoints))
+    route_response = routing.routing_request(waypoints)
 
     return json.dumps(route_response)
