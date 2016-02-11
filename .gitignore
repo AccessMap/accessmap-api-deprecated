@@ -35,3 +35,6 @@ $RECYCLE.BIN/
 
 # Environment variable setter
 set_env.sh
+
+# Vim temporary files
+*.swp
