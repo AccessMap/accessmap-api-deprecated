@@ -19,4 +19,4 @@ def in_bbox(col, bounds):
     '''
     envelope = ST_MakeEnvelope(bounds[0], bounds[1], bounds[2], bounds[3],
                                4326)
-    return ga.functions.ST_Intersects(col, func.ST_Transform(envelope, 4269))
+    return ga.functions.ST_Intersects(col, func.ST_Transform(envelope, 2926))
