@@ -10,7 +10,7 @@ import json
 def sidewalksv2():
     table = models.Sidewalks
     bbox = request.args.get('bbox')
-    geojson_geom = gfunc.ST_AsGeoJSON(table.geom).label('geom')
+    geojson_geom = gfunc.ST_AsGeoJSON(gfunc.ST_Transform(table.geom, 4326)).label('geom')
     if not bbox:
         select = db.session.query(table.id,
                                   geojson_geom,
@@ -39,7 +39,7 @@ def sidewalksv2():
 def crossingsv2():
     table = models.Sidewalks
     bbox = request.args.get('bbox')
-    geojson_geom = gfunc.ST_AsGeoJSON(table.geom).label('geom')
+    geojson_geom = gfunc.ST_AsGeoJSON(gfunc.ST_Transform(table.geom, 4326)).label('geom')
     if not bbox:
         select = db.session.query(table.id,
                                   geojson_geom,
