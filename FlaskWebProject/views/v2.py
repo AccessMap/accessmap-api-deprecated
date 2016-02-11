@@ -1,4 +1,4 @@
-from FlaskWebProject import app, db, models, sql_utils
+from FlaskWebProject import app, db, models, sql_utils, isochrones
 from flask import request
 import geoalchemy2.functions as gfunc
 # import geoalchemy2 as ga
@@ -62,3 +62,19 @@ def crossingsv2():
         fc['features'].append(feature)
 
     return json.dumps(fc)
+
+
+@app.route('/v2/isochrone.geojson')
+def isochronev2():
+    lon = float(request.args.get('lon'))
+    lat = float(request.args.get('lat'))
+    if lon is None or lat is None:
+        return 'Bad request - lon and lat parameters are required.'
+    wcorridors = request.args.get('wcorridors')
+
+    if wcorridors == 'true':
+        isochrone = isochrones.get_isochrone([lon, lat])
+    else:
+        isochrone = isochrones.get_isochrone([lon, lat], 'costnocorridors')
+
+    return json.dumps(isochrone)
