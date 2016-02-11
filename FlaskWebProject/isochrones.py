@@ -3,7 +3,7 @@ import geojson
 import json
 # import matplotlib.pyplot as plt
 import numpy as np
-# from scipy.interpolate import griddata
+from scipy.interpolate import griddata
 
 
 def get_isochrone(lonlat, costcol='cost'):
