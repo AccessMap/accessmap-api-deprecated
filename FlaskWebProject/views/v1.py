@@ -10,7 +10,8 @@ import json
 def sidewalksv1():
     table = models.SidewalksData
     bbox = request.args.get('bbox')
-    geojson_geom = gfunc.ST_AsGeoJSON(gfunc.ST_Transform(table.geom, 4326)).label('geom')
+    geojson_query = gfunc.ST_AsGeoJSON(gfunc.ST_Transform(table.geom, 4326))
+    geojson_geom = geojson_query.label('geom')
     if not bbox:
         select = db.session.query(table.id,
                                   geojson_geom,
@@ -39,7 +40,8 @@ def sidewalksv1():
 def curbrampsv1():
     table = models.CurbrampsData
     bbox = request.args.get('bbox')
-    geojson_geom = gfunc.ST_AsGeoJSON(gfunc.ST_Transform(table.geom, 4326)).label('geom')
+    geojson_query = gfunc.ST_AsGeoJSON(gfunc.ST_Transform(table.geom, 4326))
+    geojson_geom = geojson_query.label('geom')
     if not bbox:
         select = db.session.query(table.id,
                                   geojson_geom)
@@ -59,3 +61,11 @@ def curbrampsv1():
         fc['features'].append(feature)
 
     return json.dumps(fc)
+
+
+@app.route('/v1/mapinfo')
+def mapinfov1():
+    info = {'tiles': app.config['MAPBOX_TILES'],
+            'token': app.config['MAPBOX_TOKEN']}
+
+    return json.dumps(info)

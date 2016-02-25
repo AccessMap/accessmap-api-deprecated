@@ -34,7 +34,7 @@ $RECYCLE.BIN/
 .DS_Store
 
 # Environment variable setter
-set_env.sh
+set_envs.sh
 
 # Vim temporary files
 *.swp

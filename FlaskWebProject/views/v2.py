@@ -10,7 +10,8 @@ import json
 def sidewalksv2():
     table = models.Sidewalks
     bbox = request.args.get('bbox')
-    geojson_geom = gfunc.ST_AsGeoJSON(gfunc.ST_Transform(table.geom, 4326)).label('geom')
+    geojson_query = gfunc.ST_AsGeoJSON(gfunc.ST_Transform(table.geom, 4326))
+    geojson_geom = geojson_query.label('geom')
     if not bbox:
         select = db.session.query(table.id,
                                   geojson_geom,
@@ -39,7 +40,8 @@ def sidewalksv2():
 def crossingsv2():
     table = models.Sidewalks
     bbox = request.args.get('bbox')
-    geojson_geom = gfunc.ST_AsGeoJSON(gfunc.ST_Transform(table.geom, 4326)).label('geom')
+    geojson_query = gfunc.ST_AsGeoJSON(gfunc.ST_Transform(table.geom, 4326))
+    geojson_geom = geojson_query.label('geom')
     if not bbox:
         select = db.session.query(table.id,
                                   geojson_geom,
@@ -80,3 +82,11 @@ def routev2():
     route_response = routing.routing_request(list(waypoints))
 
     return json.dumps(route_response)
+
+
+@app.route('/v2/mapinfo')
+def mapinfov2():
+    info = {'tiles': app.config['MAPBOX_TILES'],
+            'token': app.config['MAPBOX_TOKEN']}
+
+    return json.dumps(info)
