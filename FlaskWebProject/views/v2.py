@@ -38,7 +38,7 @@ def sidewalksv2():
 
 @app.route('/v2/crossings.geojson')
 def crossingsv2():
-    table = models.Sidewalks
+    table = models.Crossings
     bbox = request.args.get('bbox')
     geojson_query = gfunc.ST_AsGeoJSON(gfunc.ST_Transform(table.geom, 4326))
     geojson_geom = geojson_query.label('geom')
