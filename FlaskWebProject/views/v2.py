@@ -45,14 +45,16 @@ def crossingsv2():
     if not bbox:
         select = db.session.query(table.id,
                                   geojson_geom,
-                                  table.grade)
+                                  table.grade,
+                                  table.curbramps)
         result = select.limit(10).all()
     else:
         bounds = [float(b) for b in bbox.split(',')]
         in_bbox = sql_utils.in_bbox(table.geom, bounds)
         select = db.session.query(table.id,
                                   geojson_geom,
-                                  table.grade)
+                                  table.grade,
+                                  table.curbramps)
         result = select.filter(in_bbox).all()
 
     fc = geojson.FeatureCollection([])
@@ -60,7 +62,8 @@ def crossingsv2():
         feature = geojson.Feature()
         feature['geometry'] = json.loads(row.geom)
         feature['properties'] = {'id': row.id,
-                                 'grade': row.grade}
+                                 'grade': row.grade,
+                                 'curbramps': row.curbramps}
         fc['features'].append(feature)
 
     return json.dumps(fc)

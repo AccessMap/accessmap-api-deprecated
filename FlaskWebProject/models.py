@@ -15,6 +15,7 @@ class Crossings(db.PublicBase):
     id = sa.Column(sa.Integer, primary_key=True)
     geom = sa.Column(ga.Geometry)
     grade = sa.Column(sa.Float)
+    curbramps = sa.Column(sa.Boolean)
 
 
 class SidewalksData(db.PublicBase):
