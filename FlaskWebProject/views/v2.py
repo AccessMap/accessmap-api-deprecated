@@ -25,15 +25,22 @@ def sidewalksv2():
                                   table.grade)
         result = select.filter(in_bbox).all()
 
-    fc = geojson.FeatureCollection([])
+    feature_collection = geojson.FeatureCollection([])
     for row in result:
         feature = geojson.Feature()
-        feature['geometry'] = json.loads(row.geom)
+        # Trim to 7 decimal places to decrease amount of data sent
+        # (corresponds to about 11 mm precision)
+        geometry = json.loads(row.geom)
+        for i, lonlat in enumerate(geometry['coordinates']):
+            lon = round(lonlat[0], 7)
+            lat = round(lonlat[1], 7)
+            geometry['coordinates'][i] = [lon, lat]
+        feature['geometry'] = geometry
         feature['properties'] = {'id': row.id,
-                                 'grade': row.grade}
-        fc['features'].append(feature)
+                                 'grade': round(row.grade, 2)}
+        feature_collection['features'].append(feature)
 
-    return json.dumps(fc)
+    return json.dumps(feature_collection)
 
 
 @app.route('/v2/crossings.geojson')
@@ -60,9 +67,14 @@ def crossingsv2():
     fc = geojson.FeatureCollection([])
     for row in result:
         feature = geojson.Feature()
-        feature['geometry'] = json.loads(row.geom)
+        geometry = json.loads(row.geom)
+        for i, lonlat in enumerate(geometry['coordinates']):
+            lon = round(lonlat[0], 7)
+            lat = round(lonlat[1], 7)
+            geometry['coordinates'][i] = [lon, lat]
+        feature['geometry'] = geometry
         feature['properties'] = {'id': row.id,
-                                 'grade': row.grade,
+                                 'grade': round(row.grade, 2),
                                  'curbramps': row.curbramps}
         fc['features'].append(feature)
 
