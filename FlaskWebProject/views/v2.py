@@ -37,7 +37,7 @@ def sidewalksv2():
             geometry['coordinates'][i] = [lon, lat]
         feature['geometry'] = geometry
         feature['properties'] = {'id': row.id,
-                                 'grade': round(row.grade, 2)}
+                                 'grade': round(row.grade, 3)}
         feature_collection['features'].append(feature)
 
     return json.dumps(feature_collection)
@@ -74,7 +74,7 @@ def crossingsv2():
             geometry['coordinates'][i] = [lon, lat]
         feature['geometry'] = geometry
         feature['properties'] = {'id': row.id,
-                                 'grade': round(row.grade, 2),
+                                 'grade': round(row.grade, 3),
                                  'curbramps': row.curbramps}
         fc['features'].append(feature)
 
