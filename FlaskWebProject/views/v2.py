@@ -1,5 +1,5 @@
 from FlaskWebProject import app, db, models, sql_utils, routing
-from flask import request
+from flask import jsonify, request
 import geoalchemy2.functions as gfunc
 # import geoalchemy2 as ga
 import geojson
@@ -10,7 +10,8 @@ import json
 def sidewalksv2():
     table = models.Sidewalks
     bbox = request.args.get('bbox')
-    geojson_query = gfunc.ST_AsGeoJSON(gfunc.ST_Transform(table.geom, 4326))
+    geom_latlon = gfunc.ST_Transform(table.geom, 4326)
+    geojson_query = gfunc.ST_AsGeoJSON(geom_latlon)
     geojson_geom = geojson_query.label('geom')
     if not bbox:
         select = db.session.query(table.id,
@@ -19,7 +20,7 @@ def sidewalksv2():
         result = select.limit(10).all()
     else:
         bounds = [float(b) for b in bbox.split(',')]
-        in_bbox = sql_utils.in_bbox(table.geom, bounds)
+        in_bbox = sql_utils.in_bbox(geom_latlon, bounds)
         select = db.session.query(table.id,
                                   geojson_geom,
                                   table.grade)
@@ -35,19 +36,21 @@ def sidewalksv2():
             lon = round(lonlat[0], 7)
             lat = round(lonlat[1], 7)
             geometry['coordinates'][i] = [lon, lat]
+
         feature['geometry'] = geometry
         feature['properties'] = {'id': row.id,
                                  'grade': round(row.grade, 3)}
         feature_collection['features'].append(feature)
 
-    return json.dumps(feature_collection)
+    return jsonify(feature_collection)
 
 
 @app.route('/v2/crossings.geojson')
 def crossingsv2():
     table = models.Crossings
     bbox = request.args.get('bbox')
-    geojson_query = gfunc.ST_AsGeoJSON(gfunc.ST_Transform(table.geom, 4326))
+    geom_latlon = gfunc.ST_Transform(table.geom, 4326)
+    geojson_query = gfunc.ST_AsGeoJSON(geom_latlon)
     geojson_geom = geojson_query.label('geom')
     if not bbox:
         select = db.session.query(table.id,
@@ -57,7 +60,7 @@ def crossingsv2():
         result = select.limit(10).all()
     else:
         bounds = [float(b) for b in bbox.split(',')]
-        in_bbox = sql_utils.in_bbox(table.geom, bounds)
+        in_bbox = sql_utils.in_bbox(geom_latlon, bounds)
         select = db.session.query(table.id,
                                   geojson_geom,
                                   table.grade,
@@ -78,7 +81,7 @@ def crossingsv2():
                                  'curbramps': row.curbramps}
         fc['features'].append(feature)
 
-    return json.dumps(fc)
+    return jsonify(fc)
 
 
 @app.route('/v2/route.json', methods=['GET'])
@@ -96,7 +99,7 @@ def routev2():
     # request route
     route_response = routing.routing_request(list(waypoints))
 
-    return json.dumps(route_response)
+    return jsonify(route_response)
 
 
 @app.route('/v2/mapinfo')
@@ -104,4 +107,4 @@ def mapinfov2():
     info = {'tiles': app.config['MAPBOX_TILES'],
             'token': app.config['MAPBOX_TOKEN']}
 
-    return json.dumps(info)
+    return jsonify(info)
