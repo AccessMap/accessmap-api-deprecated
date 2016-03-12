@@ -22,4 +22,4 @@ def after_request(response):
 
     return response
 
-import FlaskWebProject.views
+import accessmapapi.views
