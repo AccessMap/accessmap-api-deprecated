@@ -114,9 +114,17 @@ The AccessMap web API is written in Python 3.4+ and uses the Flask web
 framework. You can install all of the tools needed (preferably into a
 virtualenv environment titled `env`) using
 
-    pip install -r requirements.txt
+    pip3 install -r requirements.txt
 
-You can run a local instance by running the following command in the main
+Set up the required environment variables. An included .sh script is listed -
+rename it to 'set_envs.sh' and add the following information:
+
+    export DATABASE_URL=postgres://login:pass@host:port/database
+
+This is in the standard format of an SQL connection string for Postgres. To
+enable this environment variable, run `source set_envs.sh`.
+
+You can then run a local instance by running the following command in the main
 directory:
 
     python3 ./runserver.py

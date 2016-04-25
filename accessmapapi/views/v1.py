@@ -71,11 +71,3 @@ def curbrampsv1():
         fc['features'].append(feature)
 
     return jsonify(fc)
-
-
-@app.route('/v1/mapinfo')
-def mapinfov1():
-    info = {'tiles': app.config['MAPBOX_TILES'],
-            'token': app.config['MAPBOX_TOKEN']}
-
-    return jsonify(info)

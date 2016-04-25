@@ -5,8 +5,6 @@ import os
 
 app = Flask(__name__)
 app.config['DATABASE_URL'] = os.environ['DATABASE_URL']
-app.config['MAPBOX_TILES'] = os.environ['MAPBOX_TILES']
-app.config['MAPBOX_TOKEN'] = os.environ['MAPBOX_TOKEN']
 # To get debugging messages:
 app.config['PROPAGATE_EXCEPTIONS'] = True
 

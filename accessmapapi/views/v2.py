@@ -100,11 +100,3 @@ def routev2():
     route_response = routing.routing_request(list(waypoints))
 
     return jsonify(route_response)
-
-
-@app.route('/v2/mapinfo')
-def mapinfov2():
-    info = {'tiles': app.config['MAPBOX_TILES'],
-            'token': app.config['MAPBOX_TOKEN']}
-
-    return jsonify(info)
