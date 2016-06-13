@@ -10,21 +10,28 @@ import json
 def sidewalksv2():
     table = models.Sidewalks
     bbox = request.args.get('bbox')
+    all_rows = request.args.get('all')
     geom_latlon = gfunc.ST_Transform(table.geom, 4326)
     geojson_query = gfunc.ST_AsGeoJSON(geom_latlon)
     geojson_geom = geojson_query.label('geom')
-    if not bbox:
+    if all_rows == 'true':
         select = db.session.query(table.id,
                                   geojson_geom,
                                   table.grade)
-        result = select.limit(10).all()
+        result = select.all()
     else:
-        bounds = [float(b) for b in bbox.split(',')]
-        in_bbox = sql_utils.in_bbox(geom_latlon, bounds)
-        select = db.session.query(table.id,
-                                  geojson_geom,
-                                  table.grade)
-        result = select.filter(in_bbox).all()
+        if not bbox:
+            select = db.session.query(table.id,
+                                      geojson_geom,
+                                      table.grade)
+            result = select.limit(10).all()
+        else:
+            bounds = [float(b) for b in bbox.split(',')]
+            in_bbox = sql_utils.in_bbox(geom_latlon, bounds)
+            select = db.session.query(table.id,
+                                      geojson_geom,
+                                      table.grade)
+            result = select.filter(in_bbox).all()
 
     feature_collection = geojson.FeatureCollection([])
     for row in result:
@@ -49,23 +56,31 @@ def sidewalksv2():
 def crossingsv2():
     table = models.Crossings
     bbox = request.args.get('bbox')
+    all_rows = request.args.get('all')
     geom_latlon = gfunc.ST_Transform(table.geom, 4326)
     geojson_query = gfunc.ST_AsGeoJSON(geom_latlon)
     geojson_geom = geojson_query.label('geom')
-    if not bbox:
+    if all_rows == 'true':
         select = db.session.query(table.id,
                                   geojson_geom,
                                   table.grade,
                                   table.curbramps)
-        result = select.limit(10).all()
+        result = select.all()
     else:
-        bounds = [float(b) for b in bbox.split(',')]
-        in_bbox = sql_utils.in_bbox(geom_latlon, bounds)
-        select = db.session.query(table.id,
-                                  geojson_geom,
-                                  table.grade,
-                                  table.curbramps)
-        result = select.filter(in_bbox).all()
+        if not bbox:
+            select = db.session.query(table.id,
+                                      geojson_geom,
+                                      table.grade,
+                                      table.curbramps)
+            result = select.limit(10).all()
+        else:
+            bounds = [float(b) for b in bbox.split(',')]
+            in_bbox = sql_utils.in_bbox(geom_latlon, bounds)
+            select = db.session.query(table.id,
+                                      geojson_geom,
+                                      table.grade,
+                                      table.curbramps)
+            result = select.filter(in_bbox).all()
 
     fc = geojson.FeatureCollection([])
     for row in result:
