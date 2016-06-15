@@ -41,7 +41,7 @@ def routing_request(waypoints):
     closest_row_sql = '''  SELECT id
                              FROM {}
                          ORDER BY ST_Distance(the_geom, {})
-                            LIMIT 1;'''
+                            LIMIT 1'''
     origin_query = closest_row_sql.format(routing_vertices_table, origin_geom)
     dest_query = closest_row_sql.format(routing_vertices_table, dest_geom)
 
@@ -79,63 +79,40 @@ def routing_request(waypoints):
                         source::integer,
                         target::integer,
                         {}::double precision AS cost
-                   FROM {};'''.format(cost_fun, routing_table)
+                   FROM {}'''.format(cost_fun, routing_table)
     # Request route - turn geometries directly into GeoJSON
     route_sql = '''SELECT seq,
                           id1::integer AS node,
                           id2::integer AS edge,
                           cost
-                     FROM pgr_dijkstra('{}',{},{},{},{});'''
+                     FROM pgr_dijkstra('{}',{},{},{},{})'''
     route_query = route_sql.format(pgr_sql, start_node, end_node, 'false',
                                    'false', routing_table)
-    result = db.engine.execute(route_query)
-    rows = list(result)
+    output_sql = '''
+    SELECT ST_AsGeoJSON(ST_LineMerge(ST_Collect(route.geom)), 7)
+      FROM (
+            SELECT CASE source
+                   WHEN pgr.node
+                   THEN geom
+                   ELSE ST_Reverse(geom)
+                    END
+                     AS geom
+              FROM {}
+              JOIN ({}) AS pgr
+                ON id = pgr.edge) AS route
+    '''
+
+    output_query = output_sql.format(routing_table, route_query)
+
+    result = db.engine.execute(output_query)
+    geom_row = result.fetchone()
     result.close()
+    if not geom_row:
+        return {'code': 'NoRoute',
+                'waypoints': [],
+                'routes': []}
 
-    geom_fc = {'type': 'FeatureCollection',
-               'features': []}
-    geoms = []
-    for row in rows:
-        node_id = row[1]
-        edge_id = row[2]
-
-        if edge_id != -1:
-            geom_query = '''
-                SELECT ST_AsGeoJSON(geom, 7),
-                       ST_AsText(geom)
-                  FROM {}
-                 WHERE source = {} AND id = {}
-                 UNION
-                SELECT ST_AsGeoJSON(ST_Reverse(geom), 7),
-                       ST_AsText(ST_Reverse(geom))
-                  FROM {}
-                 WHERE target = {} AND id = {};
-            '''.format(routing_table, node_id, edge_id, routing_table,
-                       node_id, edge_id)
-            result = db.engine.execute(geom_query)
-            result_list = list(result)
-            if not result_list:
-                return {'code': 'NoRoute',
-                        'waypoints': [],
-                        'routes': []}
-            geom_row = result_list[0]
-            result.close()
-            feature = {'type': 'Feature',
-                       'geometry': json.loads(geom_row[0]),
-                       'properties': {}}
-            geom_fc['features'].append(feature)
-            geom = 'ST_GeomFromText(\'{}\')'.format(geom_row[1])
-            geoms.append(geom)
-
-    geom_array_args = ', '.join(geoms)
-
-    # Take geoms and join them into one big linestring
-    merge_query = '''
-        SELECT ST_AsGeoJSON(ST_LineMerge(ST_Union(ST_Collect(ARRAY[{}]))), 7);
-    '''.format(geom_array_args)
-    result = db.engine.execute(merge_query)
-    coords = json.loads(list(result)[0][0])['coordinates']
-    result.close()
+    coords = json.loads(geom_row[0])['coordinates']
 
     # Produce the response
     # TODO: return JSON directions similar to Mapbox or OSRM so e.g.
