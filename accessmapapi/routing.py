@@ -40,7 +40,7 @@ def routing_request(waypoints):
     # sidewalk edges and corners and disclude crossing edges.
     closest_row_sql = '''  SELECT id
                              FROM {}
-                         ORDER BY ST_Distance(the_geom, ST_Transform({}, 2926))
+                         ORDER BY ST_Distance(the_geom, ST_Transform({}, 4326))
                             LIMIT 1;'''
     origin_query = closest_row_sql.format(routing_vertices_table, origin_geom)
     dest_query = closest_row_sql.format(routing_vertices_table, dest_geom)
