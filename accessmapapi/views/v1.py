@@ -10,8 +10,7 @@ import json
 def sidewalksv1():
     table = models.SidewalksData
     bbox = request.args.get('bbox')
-    geom_latlon = gfunc.ST_Transform(table.geom, 4326)
-    geojson_query = gfunc.ST_AsGeoJSON(geom_latlon)
+    geojson_query = gfunc.ST_AsGeoJSON(table.geom)
     geojson_geom = geojson_query.label('geom')
     if not bbox:
         select = db.session.query(table.id,
@@ -20,7 +19,7 @@ def sidewalksv1():
         result = select.limit(10).all()
     else:
         bounds = [float(b) for b in bbox.split(',')]
-        in_bbox = sql_utils.in_bbox(geom_latlon, bounds)
+        in_bbox = sql_utils.in_bbox(table.geom, bounds)
         select = db.session.query(table.id,
                                   geojson_geom,
                                   table.grade)
@@ -49,8 +48,7 @@ def sidewalksv1():
 def curbrampsv1():
     table = models.CurbrampsData
     bbox = request.args.get('bbox')
-    geom_latlon = gfunc.ST_Transform(table.geom, 4326)
-    geojson_query = gfunc.ST_AsGeoJSON(geom_latlon)
+    geojson_query = gfunc.ST_AsGeoJSON(table.geom)
     geojson_geom = geojson_query.label('geom')
     if not bbox:
         select = db.session.query(table.id,
@@ -58,7 +56,7 @@ def curbrampsv1():
         result = select.limit(10).all()
     else:
         bounds = [float(b) for b in bbox.split(',')]
-        in_bbox = sql_utils.in_bbox(geom_latlon, bounds)
+        in_bbox = sql_utils.in_bbox(table.geom, bounds)
         select = db.session.query(table.id,
                                   geojson_geom)
         result = select.filter(in_bbox).all()

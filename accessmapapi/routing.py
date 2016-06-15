@@ -20,7 +20,7 @@ def routing_request(waypoints):
     routing_vertices_table = routing_table + '_vertices_pgr'
 
     # BIG FIXME: WOW, these aren't injection safe at all (Bobby Tables...)
-    point_sql = 'ST_Setsrid(ST_Makepoint({}, {}), 4326)'
+    point_sql = 'ST_SetSRID(ST_Makepoint({}, {}), 4326)'
     # Note that in geoJSON, the order is [lon, lat], so reversed order here
     origin_geom = point_sql.format(origin[1], origin[0])
     dest_geom = point_sql.format(dest[1], dest[0])
@@ -40,7 +40,7 @@ def routing_request(waypoints):
     # sidewalk edges and corners and disclude crossing edges.
     closest_row_sql = '''  SELECT id
                              FROM {}
-                         ORDER BY ST_Distance(the_geom, ST_Transform({}, 4326))
+                         ORDER BY ST_Distance(the_geom, {})
                             LIMIT 1;'''
     origin_query = closest_row_sql.format(routing_vertices_table, origin_geom)
     dest_query = closest_row_sql.format(routing_vertices_table, dest_geom)
@@ -58,11 +58,12 @@ def routing_request(waypoints):
 
     # Cost function(s)
     # cost_fun = 'ST_length(geom) + (k_ele * abs(geom.ele1 - geom.ele2))'
-    dist_cost = '{} * ST_length(geom)'.format(kdist)
+    dist_cost = '{} * ST_length(geom::geography)'.format(kdist)
     # height_cost = '{} * ABS(ele_change)'.format(kele)
     # Instead, let's do a slope cost
     slope_cost = ('CASE ST_length(geom) WHEN 0 THEN 0 ELSE '
-                  '{} * POW(ABS(ele_change) / ST_length(geom), 4) END')
+                  '{} * POW(ABS(ele_change) / ST_length(geom::geography), 4)'
+                  'END')
     slope_cost = slope_cost.format(kele)
     kcrossing = 1e2
     crossing_cost = '{} * iscrossing'.format(kcrossing)
@@ -100,19 +101,24 @@ def routing_request(waypoints):
 
         if edge_id != -1:
             geom_query = '''
-                SELECT ST_AsGeoJSON(ST_Transform(geom, 4326)),
-                       ST_AsText(ST_Transform(geom, 4326))
+                SELECT ST_AsGeoJSON(geom),
+                       ST_AsText(geom)
                   FROM {}
                  WHERE source = {} AND id = {}
                  UNION
-                SELECT ST_AsGeoJSON(ST_Transform(ST_Reverse(geom), 4326)),
-                       ST_AsText(ST_Transform(ST_Reverse(geom), 4326))
+                SELECT ST_AsGeoJSON(ST_Reverse(geom)),
+                       ST_AsText(ST_Reverse(geom))
                   FROM {}
                  WHERE target = {} AND id = {};
             '''.format(routing_table, node_id, edge_id, routing_table,
                        node_id, edge_id)
             result = db.engine.execute(geom_query)
-            geom_row = list(result)[0]
+            result_list = list(result)
+            if not result_list:
+                return {'code': 'NoRoute',
+                        'waypoints': [],
+                        'routes': []}
+            geom_row = result_list[0]
             result.close()
             feature = {'type': 'Feature',
                        'geometry': json.loads(geom_row[0]),
@@ -214,5 +220,6 @@ def routing_request(waypoints):
     route_response['destination'] = dest_feature
     route_response['waypoints'] = waypoints_feature_list
     route_response['routes'] = routes
+    route_response['code'] = 'Ok'
 
     return route_response

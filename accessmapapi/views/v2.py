@@ -11,8 +11,7 @@ def sidewalksv2():
     table = models.Sidewalks
     bbox = request.args.get('bbox')
     all_rows = request.args.get('all')
-    geom_latlon = gfunc.ST_Transform(table.geom, 4326)
-    geojson_query = gfunc.ST_AsGeoJSON(geom_latlon)
+    geojson_query = gfunc.ST_AsGeoJSON(table.geom)
     geojson_geom = geojson_query.label('geom')
     if all_rows == 'true':
         select = db.session.query(table.id,
@@ -27,7 +26,7 @@ def sidewalksv2():
             result = select.limit(10).all()
         else:
             bounds = [float(b) for b in bbox.split(',')]
-            in_bbox = sql_utils.in_bbox(geom_latlon, bounds)
+            in_bbox = sql_utils.in_bbox(table.geom, bounds)
             select = db.session.query(table.id,
                                       geojson_geom,
                                       table.grade)
@@ -57,8 +56,7 @@ def crossingsv2():
     table = models.Crossings
     bbox = request.args.get('bbox')
     all_rows = request.args.get('all')
-    geom_latlon = gfunc.ST_Transform(table.geom, 4326)
-    geojson_query = gfunc.ST_AsGeoJSON(geom_latlon)
+    geojson_query = gfunc.ST_AsGeoJSON(table.geom)
     geojson_geom = geojson_query.label('geom')
     if all_rows == 'true':
         select = db.session.query(table.id,
@@ -75,7 +73,7 @@ def crossingsv2():
             result = select.limit(10).all()
         else:
             bounds = [float(b) for b in bbox.split(',')]
-            in_bbox = sql_utils.in_bbox(geom_latlon, bounds)
+            in_bbox = sql_utils.in_bbox(table.geom, bounds)
             select = db.session.query(table.id,
                                       geojson_geom,
                                       table.grade,
