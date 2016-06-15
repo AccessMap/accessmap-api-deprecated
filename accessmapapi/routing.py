@@ -101,12 +101,12 @@ def routing_request(waypoints):
 
         if edge_id != -1:
             geom_query = '''
-                SELECT ST_AsGeoJSON(geom),
+                SELECT ST_AsGeoJSON(geom, 7),
                        ST_AsText(geom)
                   FROM {}
                  WHERE source = {} AND id = {}
                  UNION
-                SELECT ST_AsGeoJSON(ST_Reverse(geom)),
+                SELECT ST_AsGeoJSON(ST_Reverse(geom), 7),
                        ST_AsText(ST_Reverse(geom))
                   FROM {}
                  WHERE target = {} AND id = {};
@@ -127,11 +127,12 @@ def routing_request(waypoints):
             geom = 'ST_GeomFromText(\'{}\')'.format(geom_row[1])
             geoms.append(geom)
 
+    print(geom_fc)
     geom_array_args = ', '.join(geoms)
 
     # Take geoms and join them into one big linestring
     merge_query = '''
-        SELECT ST_AsGeoJSON(ST_LineMerge(ST_Union(ST_Collect(ARRAY[{}]))));
+        SELECT ST_AsGeoJSON(ST_LineMerge(ST_Union(ST_Collect(ARRAY[{}]))), 7);
     '''.format(geom_array_args)
     result = db.engine.execute(merge_query)
     coords = json.loads(list(result)[0][0])['coordinates']

@@ -10,7 +10,7 @@ import json
 def sidewalksv1():
     table = models.SidewalksData
     bbox = request.args.get('bbox')
-    geojson_query = gfunc.ST_AsGeoJSON(table.geom)
+    geojson_query = gfunc.ST_AsGeoJSON(table.geom, 7)
     geojson_geom = geojson_query.label('geom')
     if not bbox:
         select = db.session.query(table.id,
@@ -28,14 +28,7 @@ def sidewalksv1():
     feature_collection = geojson.FeatureCollection([])
     for row in result:
         feature = geojson.Feature()
-        # Trim to 7 decimal places to decrease amount of data sent
-        # (corresponds to about 11 mm precision)
         geometry = json.loads(row.geom)
-        for i, lonlat in enumerate(geometry['coordinates']):
-            lon = round(lonlat[0], 7)
-            lat = round(lonlat[1], 7)
-            geometry['coordinates'][i] = [lon, lat]
-
         feature['geometry'] = geometry
         feature['properties'] = {'id': row.id,
                                  'grade': round(row.grade, 3)}
@@ -48,7 +41,7 @@ def sidewalksv1():
 def curbrampsv1():
     table = models.CurbrampsData
     bbox = request.args.get('bbox')
-    geojson_query = gfunc.ST_AsGeoJSON(table.geom)
+    geojson_query = gfunc.ST_AsGeoJSON(table.geom, 7)
     geojson_geom = geojson_query.label('geom')
     if not bbox:
         select = db.session.query(table.id,

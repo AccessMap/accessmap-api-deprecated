@@ -11,7 +11,7 @@ def sidewalksv2():
     table = models.Sidewalks
     bbox = request.args.get('bbox')
     all_rows = request.args.get('all')
-    geojson_query = gfunc.ST_AsGeoJSON(table.geom)
+    geojson_query = gfunc.ST_AsGeoJSON(table.geom, 7)
     geojson_geom = geojson_query.label('geom')
     if all_rows == 'true':
         select = db.session.query(table.id,
@@ -35,14 +35,7 @@ def sidewalksv2():
     feature_collection = geojson.FeatureCollection([])
     for row in result:
         feature = geojson.Feature()
-        # Trim to 7 decimal places to decrease amount of data sent
-        # (corresponds to about 11 mm precision)
         geometry = json.loads(row.geom)
-        for i, lonlat in enumerate(geometry['coordinates']):
-            lon = round(lonlat[0], 7)
-            lat = round(lonlat[1], 7)
-            geometry['coordinates'][i] = [lon, lat]
-
         feature['geometry'] = geometry
         feature['properties'] = {'id': row.id,
                                  'grade': round(row.grade, 3)}
@@ -56,7 +49,7 @@ def crossingsv2():
     table = models.Crossings
     bbox = request.args.get('bbox')
     all_rows = request.args.get('all')
-    geojson_query = gfunc.ST_AsGeoJSON(table.geom)
+    geojson_query = gfunc.ST_AsGeoJSON(table.geom, 7)
     geojson_geom = geojson_query.label('geom')
     if all_rows == 'true':
         select = db.session.query(table.id,
