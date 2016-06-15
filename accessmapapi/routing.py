@@ -57,12 +57,12 @@ def routing_request(waypoints):
     # FIXME: these costs need to be normalized (distance vs. elevation)
 
     # Cost function(s)
-    # cost_fun = 'ST_length(geom) + (k_ele * abs(geom.ele1 - geom.ele2))'
-    dist_cost = '{} * ST_length(geom::geography)'.format(kdist)
+    # cost_fun = 'length + (k_ele * abs(geom.ele1 - geom.ele2))'
+    dist_cost = '{} * length'.format(kdist)
     # height_cost = '{} * ABS(ele_change)'.format(kele)
     # Instead, let's do a slope cost
-    slope_cost = ('CASE ST_length(geom) WHEN 0 THEN 0 ELSE '
-                  '{} * POW(ABS(ele_change) / ST_length(geom::geography), 4)'
+    slope_cost = ('CASE length WHEN 0 THEN 0 ELSE '
+                  '{} * POW(ABS(ele_change) / length, 4)'
                   'END')
     slope_cost = slope_cost.format(kele)
     kcrossing = 1e2
@@ -127,7 +127,6 @@ def routing_request(waypoints):
             geom = 'ST_GeomFromText(\'{}\')'.format(geom_row[1])
             geoms.append(geom)
 
-    print(geom_fc)
     geom_array_args = ', '.join(geoms)
 
     # Take geoms and join them into one big linestring
