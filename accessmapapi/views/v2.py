@@ -90,6 +90,40 @@ def crossingsv2():
     return jsonify(fc)
 
 
+@app.route('/v2/curbramps.geojson')
+def curbrampsv2():
+    table = models.Curbramps
+    bbox = request.args.get('bbox')
+    all_rows = request.args.get('all')
+    geojson_query = gfunc.ST_AsGeoJSON(table.geom, 7)
+    geojson_geom = geojson_query.label('geom')
+    if all_rows == 'true':
+        select = db.session.query(table.id,
+                                  geojson_geom)
+        result = select.all()
+    else:
+        if not bbox:
+            select = db.session.query(table.id,
+                                      geojson_geom)
+            result = select.limit(10).all()
+        else:
+            bounds = [float(b) for b in bbox.split(',')]
+            in_bbox = sql_utils.in_bbox(table.geom, bounds)
+            select = db.session.query(table.id,
+                                      geojson_geom)
+            result = select.filter(in_bbox).all()
+
+    feature_collection = geojson.FeatureCollection([])
+    for row in result:
+        feature = geojson.Feature()
+        geometry = json.loads(row.geom)
+        feature['geometry'] = geometry
+        feature['properties'] = {'id': row.id}
+        feature_collection['features'].append(feature)
+
+    return jsonify(feature_collection)
+
+
 @app.route('/v2/route.json', methods=['GET'])
 def routev2():
     # Process arguments

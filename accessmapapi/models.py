@@ -18,6 +18,12 @@ class Crossings(db.PublicBase):
     curbramps = sa.Column(sa.Boolean)
 
 
+class Curbramps(db.PublicBase):
+    __tablename__ = 'curbramps'
+    id = sa.Column(sa.Integer, primary_key=True)
+    geom = sa.Column(ga.Geometry)
+
+
 class SidewalksData(db.PublicBase):
     __tablename__ = 'sidewalks_data'
     id = sa.Column(sa.Integer, primary_key=True)
