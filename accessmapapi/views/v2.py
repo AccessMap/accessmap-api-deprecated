@@ -1,5 +1,5 @@
 from accessmapapi import app, db, models, sql_utils
-from accessmapapi.routing import route
+from accessmapapi.routing import costs, route, travelcost
 from flask import jsonify, request
 import geoalchemy2.functions as gfunc
 # import geoalchemy2 as ga
@@ -141,3 +141,20 @@ def routev2():
     route_response = route.routing_request(list(waypoints))
 
     return jsonify(route_response)
+
+
+@app.route('/v2/travelcost.json', methods=['GET'])
+def travelcostv2():
+    # Process arguments
+    # TODO: input validation - return reasonable HTTP errors on bad input.
+    # latlon (required!)
+    lat = request.args.get('lat', None)
+    lon = request.args.get('lon', None)
+    if lat is None or lon is None:
+        return 'Bad request - lat and lon parameters are required.'
+
+    # Calculate travel time
+    costfun = costs.manual_wheelchair('length', 'grade', 'iscrossing')
+    cost_points = travelcost.travel_cost(lat, lon, costfun, maxcost=10000)
+
+    return jsonify(cost_points)
