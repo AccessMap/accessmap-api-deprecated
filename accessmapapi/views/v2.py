@@ -1,4 +1,5 @@
-from accessmapapi import app, db, models, sql_utils, routing
+from accessmapapi import app, db, models, sql_utils
+from accessmapapi.routing import route
 from flask import jsonify, request
 import geoalchemy2.functions as gfunc
 # import geoalchemy2 as ga
@@ -137,6 +138,6 @@ def routev2():
     waypoints = zip(waypoints_input_list[0::2], waypoints_input_list[1::2])
 
     # request route
-    route_response = routing.routing_request(list(waypoints))
+    route_response = route.routing_request(list(waypoints))
 
     return jsonify(route_response)

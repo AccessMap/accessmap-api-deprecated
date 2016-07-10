@@ -1,4 +1,5 @@
-from . import db
+from accessmapapi import db
+from . import costs
 import json
 
 
@@ -10,8 +11,6 @@ def routing_request(waypoints):
     :type waypoints: list of lists of coordinates
 
     '''
-    kdist = 1.0
-    kele = 1e10
     routing_table = 'routing'
     # Isolate first and last points
     origin = waypoints.pop(0)
@@ -54,20 +53,7 @@ def routing_request(waypoints):
     result.close()
 
     # Cost function and routing
-    # FIXME: these costs need to be normalized (distance vs. elevation)
-
-    # Cost function(s)
-    # cost_fun = 'length + (k_ele * abs(geom.ele1 - geom.ele2))'
-    dist_cost = '{} * length'.format(kdist)
-    # height_cost = '{} * ABS(ele_change)'.format(kele)
-    # Instead, let's do a slope cost
-    slope_cost = ('CASE length WHEN 0 THEN 0 ELSE '
-                  '{} * POW(ABS(ele_change) / length, 4)'
-                  'END')
-    slope_cost = slope_cost.format(kele)
-    kcrossing = 1e2
-    crossing_cost = '{} * iscrossing'.format(kcrossing)
-    cost_fun = ' + '.join([dist_cost, slope_cost, crossing_cost])
+    cost_fun = costs.manual_wheelchair('length', 'grade', 'iscrossing')
 
     ###########################################
     # With start/end nodes, get optimal route #
