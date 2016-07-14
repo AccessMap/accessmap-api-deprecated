@@ -12,10 +12,10 @@ def travel_cost(lat, lon, costfun, table='routing', maxcost=1000):
     lonlat = 'ST_Setsrid(ST_Makepoint({}, {}), 4326)'.format(lon, lat)
     origin_sql = '''
       SELECT id
-        FROM isochronerouting_nodednodes
-    ORDER BY ST_Distance(geom, ST_Transform({}, 2926))
+        FROM {}_vertices_pgr
+    ORDER BY ST_Distance(the_geom, {})
        LIMIT 1;
-    '''.format(lonlat)
+    '''.format(table, lonlat)
     result = db.engine.execute(origin_sql)
     origin = result.fetchone()[0]
     result.close()
