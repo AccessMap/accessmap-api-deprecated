@@ -61,7 +61,7 @@ def routing_request(waypoints):
     # node_start = 15307
     # node_end = 15308
     # Origin and Destination nodes in pgRouting vertex table
-    pgr_sql = '''SELECT id,
+    pgr_sql = '''SELECT id::integer,
                         source::integer,
                         target::integer,
                         {}::double precision AS cost
