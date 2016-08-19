@@ -25,13 +25,13 @@ class Curbramps(db.PublicBase):
 
 
 class SidewalksData(db.PublicBase):
-    __tablename__ = 'sidewalks_data'
+    __tablename__ = 'sidewalks_orig'
     id = sa.Column(sa.Integer, primary_key=True)
     geom = sa.Column(ga.Geometry)
     grade = sa.Column(sa.Float)
 
 
 class CurbrampsData(db.PublicBase):
-    __tablename__ = 'curbramps_data'
+    __tablename__ = 'curbramps_orig'
     id = sa.Column(sa.Integer, primary_key=True)
     geom = sa.Column(ga.Geometry)

@@ -73,7 +73,9 @@ def routing_request(waypoints):
                           cost
                      FROM pgr_dijkstra('{}',{},{},{},{})'''
     route_query = route_sql.format(pgr_sql, start_node, end_node, 'false',
-                                   'false', routing_table)
+                                   'false')
+    print(route_query)
+    # FIXME: need to catch NULL result from route query, then get geojson
     output_sql = '''
     SELECT ST_AsGeoJSON(ST_LineMerge(ST_Collect(route.geom)), 7)
       FROM (
