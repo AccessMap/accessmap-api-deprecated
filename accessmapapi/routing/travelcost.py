@@ -26,7 +26,7 @@ def travel_cost(lat, lon, costfun, table='routing', maxcost=1000):
            cost,
            ST_AsGeoJSON(ST_Transform(nodes.the_geom, 4326)) AS geom
       FROM pgr_drivingDistance(
-           'SELECT id,
+           'SELECT id::integer,
                    source::int4,
                    target::int4,
                    {} AS cost
