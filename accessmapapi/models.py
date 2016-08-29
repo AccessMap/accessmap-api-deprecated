@@ -7,14 +7,14 @@ class Sidewalks(db.PublicBase):
     __tablename__ = 'sidewalks'
     id = sa.Column(sa.Integer, primary_key=True)
     geom = sa.Column(ga.Geometry)
-    grade = sa.Column(sa.Float)
+    grade = sa.Column(sa.Numeric(scale=3))
 
 
 class Crossings(db.PublicBase):
     __tablename__ = 'crossings'
     id = sa.Column(sa.Integer, primary_key=True)
     geom = sa.Column(ga.Geometry)
-    grade = sa.Column(sa.Float)
+    grade = sa.Column(sa.Numeric(scale=3))
     curbramps = sa.Column(sa.Boolean)
 
 
