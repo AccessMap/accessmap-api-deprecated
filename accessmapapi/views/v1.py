@@ -31,7 +31,7 @@ def sidewalksv1():
         geometry = json.loads(row.geom)
         feature['geometry'] = geometry
         feature['properties'] = {'id': row.id,
-                                 'grade': round(row.grade, 3)}
+                                 'grade': str(round(row.grade, 3))}
         feature_collection['features'].append(feature)
 
     return jsonify(feature_collection)

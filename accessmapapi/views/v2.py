@@ -39,7 +39,7 @@ def sidewalksv2():
         geometry = json.loads(row.geom)
         feature['geometry'] = geometry
         feature['properties'] = {'id': row.id,
-                                 'grade': round(row.grade, 3)}
+                                 'grade': str(round(row.grade, 3))}
         feature_collection['features'].append(feature)
 
     return jsonify(feature_collection)
@@ -84,7 +84,7 @@ def crossingsv2():
             geometry['coordinates'][i] = [lon, lat]
         feature['geometry'] = geometry
         feature['properties'] = {'id': row.id,
-                                 'grade': round(row.grade, 3),
+                                 'grade': str(round(row.grade, 3)),
                                  'curbramps': row.curbramps}
         fc['features'].append(feature)
 
