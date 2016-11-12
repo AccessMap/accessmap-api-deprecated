@@ -1,4 +1,5 @@
-from . import db
+from accessmapapi import db
+from . import costs
 import json
 
 
@@ -10,8 +11,6 @@ def routing_request(waypoints):
     :type waypoints: list of lists of coordinates
 
     '''
-    kdist = 1.0
-    kele = 1e10
     routing_table = 'routing'
     # Isolate first and last points
     origin = waypoints.pop(0)
@@ -54,20 +53,7 @@ def routing_request(waypoints):
     result.close()
 
     # Cost function and routing
-    # FIXME: these costs need to be normalized (distance vs. elevation)
-
-    # Cost function(s)
-    # cost_fun = 'length + (k_ele * abs(geom.ele1 - geom.ele2))'
-    dist_cost = '{} * length'.format(kdist)
-    # height_cost = '{} * ABS(ele_change)'.format(kele)
-    # Instead, let's do a slope cost
-    slope_cost = ('CASE length WHEN 0 THEN 0 ELSE '
-                  '{} * POW(ABS(ele_change) / length, 4)'
-                  'END')
-    slope_cost = slope_cost.format(kele)
-    kcrossing = 1e2
-    crossing_cost = '{} * iscrossing'.format(kcrossing)
-    cost_fun = ' + '.join([dist_cost, slope_cost, crossing_cost])
+    cost_fun = costs.manual_wheelchair('length', 'grade', 'iscrossing')
 
     ###########################################
     # With start/end nodes, get optimal route #
@@ -75,7 +61,7 @@ def routing_request(waypoints):
     # node_start = 15307
     # node_end = 15308
     # Origin and Destination nodes in pgRouting vertex table
-    pgr_sql = '''SELECT id,
+    pgr_sql = '''SELECT id::integer,
                         source::integer,
                         target::integer,
                         {}::double precision AS cost
@@ -87,9 +73,11 @@ def routing_request(waypoints):
                           cost
                      FROM pgr_dijkstra('{}',{},{},{},{})'''
     route_query = route_sql.format(pgr_sql, start_node, end_node, 'false',
-                                   'false', routing_table)
+                                   'false')
+    # FIXME: need to catch NULL result from route query, then get geojson
+    # SELECT ST_AsGeoJSON(ST_LineMerge(ST_Collect(route.geom)), 7)
     output_sql = '''
-    SELECT ST_AsGeoJSON(ST_LineMerge(ST_Collect(route.geom)), 7)
+    SELECT ST_AsGeoJSON(route.geom, 7)
       FROM (
             SELECT CASE source
                    WHEN pgr.node
@@ -105,14 +93,16 @@ def routing_request(waypoints):
     output_query = output_sql.format(routing_table, route_query)
 
     result = db.engine.execute(output_query)
-    geom_row = result.fetchone()
+    route_rows = list(result)
     result.close()
-    if not geom_row:
+    if not route_rows:
         return {'code': 'NoRoute',
                 'waypoints': [],
                 'routes': []}
 
-    coords = json.loads(geom_row[0])['coordinates']
+    coords = []
+    for row in route_rows:
+        coords += json.loads(row[0])['coordinates']
 
     # Produce the response
     # TODO: return JSON directions similar to Mapbox or OSRM so e.g.

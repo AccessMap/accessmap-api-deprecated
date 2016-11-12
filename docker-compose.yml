@@ -1,0 +1,8 @@
+version: '2'
+services:
+  accessmapapi:
+    build: .
+    environment:
+      - DATABASE_URL
+    ports:
+      - "5555:5555"
