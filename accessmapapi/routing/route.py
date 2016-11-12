@@ -74,10 +74,10 @@ def routing_request(waypoints):
                      FROM pgr_dijkstra('{}',{},{},{},{})'''
     route_query = route_sql.format(pgr_sql, start_node, end_node, 'false',
                                    'false')
-    print(route_query)
     # FIXME: need to catch NULL result from route query, then get geojson
+    # SELECT ST_AsGeoJSON(ST_LineMerge(ST_Collect(route.geom)), 7)
     output_sql = '''
-    SELECT ST_AsGeoJSON(ST_LineMerge(ST_Collect(route.geom)), 7)
+    SELECT ST_AsGeoJSON(route.geom, 7)
       FROM (
             SELECT CASE source
                    WHEN pgr.node
@@ -93,14 +93,16 @@ def routing_request(waypoints):
     output_query = output_sql.format(routing_table, route_query)
 
     result = db.engine.execute(output_query)
-    geom_row = result.fetchone()
+    route_rows = list(result)
     result.close()
-    if not geom_row:
+    if not route_rows:
         return {'code': 'NoRoute',
                 'waypoints': [],
                 'routes': []}
 
-    coords = json.loads(geom_row[0])['coordinates']
+    coords = []
+    for row in route_rows:
+        coords += json.loads(row[0])['coordinates']
 
     # Produce the response
     # TODO: return JSON directions similar to Mapbox or OSRM so e.g.
