@@ -53,7 +53,8 @@ def routing_request(waypoints):
     result.close()
 
     # Cost function and routing
-    cost_fun = costs.manual_wheelchair('length', 'grade', 'iscrossing')
+    cost_fun = costs.manual_wheelchair('length', 'grade', 'iscrossing',
+                                       kele=1e10)
 
     ###########################################
     # With start/end nodes, get optimal route #
