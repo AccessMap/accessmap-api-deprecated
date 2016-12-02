@@ -138,7 +138,23 @@ def routev2():
     waypoints = zip(waypoints_input_list[0::2], waypoints_input_list[1::2])
 
     # request route
-    route_response = route.routing_request(list(waypoints))
+    param_names = ['xlow', 'xhigh', 'xmin', 'control_low', 'control_high']
+    params = {}
+    params = {
+        'xlow': -0.09,
+        'xhigh': 0.0833,
+        'xmin': -0.01,
+        'control_low': [-0.045, 0.5],
+        'control_high': [0.04165, 0.5]
+    }
+    costfun = costs.manual_wheelchair(dist_col='length',
+                                      crossing_col='iscrossing',
+                                      grade_col='grade', xlow=params['xlow'],
+                                      xhigh=params['xhigh'],
+                                      xmin=params['xmin'],
+                                      control_low=params['control_low'],
+                                      control_high=params['control_high'])
+    route_response = route.routing_request(list(waypoints), cost=costfun)
 
     return jsonify(route_response)
 

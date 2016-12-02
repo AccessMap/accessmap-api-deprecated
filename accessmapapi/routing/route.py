@@ -3,7 +3,7 @@ from . import costs
 import json
 
 
-def routing_request(waypoints):
+def routing_request(waypoints, cost=costs.manual_wheelchair):
     '''Process a routing request, returning a Mapbox-compatible routing JSON
     object.
 
@@ -53,8 +53,7 @@ def routing_request(waypoints):
     result.close()
 
     # Cost function and routing
-    cost_fun = costs.manual_wheelchair('length', 'grade', 'iscrossing',
-                                       kele=1e10)
+    cost_fun = cost
 
     ###########################################
     # With start/end nodes, get optimal route #
@@ -78,14 +77,16 @@ def routing_request(waypoints):
     # FIXME: need to catch NULL result from route query, then get geojson
     # SELECT ST_AsGeoJSON(ST_LineMerge(ST_Collect(route.geom)), 7)
     output_sql = '''
-    SELECT ST_AsGeoJSON(route.geom, 7)
+    SELECT ST_AsGeoJSON(route.geom, 7),
+           cost
       FROM (
             SELECT CASE source
                    WHEN pgr.node
                    THEN geom
                    ELSE ST_Reverse(geom)
                     END
-                     AS geom
+                     AS geom,
+                        pgr.cost
               FROM {}
               JOIN ({}) AS pgr
                 ON id = pgr.edge) AS route
@@ -101,9 +102,23 @@ def routing_request(waypoints):
                 'waypoints': [],
                 'routes': []}
 
+    segments = {
+        'type': 'FeatureCollection',
+        'features': []
+    }
     coords = []
     for row in route_rows:
-        coords += json.loads(row[0])['coordinates']
+        geometry = json.loads(row[0])
+        segment = {
+            'type': 'Feature',
+            'geometry': geometry,
+            'properties': {
+                'cost': row[1]
+            }
+        }
+        segments['features'].append(segment)
+
+        coords += geometry['coordinates']
 
     # Produce the response
     # TODO: return JSON directions similar to Mapbox or OSRM so e.g.
@@ -159,23 +174,10 @@ def routing_request(waypoints):
     routes = []
     route = {}
     route['geometry'] = {'type': 'LineString',
-                         'coordinates': []}
-    # Route geometries look like [coord1, coord2], if we just concatenated then
-    # coord2 from the first geometry is coord1 from the second - gotta exclude
-    # the first one after the initial
-    # FIXME: prepended and appended waypoints to fix bug - shouldn't
-    #        pgrouting return them as part of the steps?
-    # Origin coordinates (start)
-    route['geometry']['coordinates'].append([origin[1], origin[0]])
-    # Route coordinates
-    route['geometry']['coordinates'] += coords
-    # for geom in route_geoms:
-    #     # FIXME: this isn't quite what we want (likely has redundant points)
-    #     #        instead, generate polyline in the SQL command
-    #     for coord in geom['coordinates']:
-    #         route['geometry']['coordinates'].append(coord)
-    # Destination coordinates (end)
-    route['geometry']['coordinates'].append([dest[1], dest[0]])
+                         'coordinates': coords}
+
+    # Add annotated segment GeoJSON FeatureCollection
+    route['segments'] = segments
 
     # TODO: Add steps!
     route['steps'] = []

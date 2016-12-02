@@ -104,14 +104,16 @@ def piecewise_linear(col, xlow, xhigh, xmin, control_low, control_high):
 
 
 def manual_wheelchair(dist_col, grade_col, crossing_col, kdist=1.0, kele=1e10,
-                      kcrossing=1e2):
+                      kcrossing=1e2, xlow=-0.09, xhigh=0.0833, xmin=-0.01,
+                      control_low=[-0.045, 0.3], control_high=[0.04165, 0.3]):
     '''Calculates a cost-to-travel that balances distance vs. steepness vs.
     needing to cross the street.
 
     '''
     dist_cost = '{} * {}'.format(kdist, dist_col)
-    grade_base = piecewise_linear(grade_col, -0.09, 0.0833, 0, [-0.045, 0.3],
-                                  [0.04165, 0.3])
+
+    grade_base = piecewise_linear(grade_col, xlow, xhigh, xmin, control_low,
+                                  control_high)
     grade_cost = '{kele} * {base}'.format(kele=kele, base=grade_base)
     crossing_cost = '{} * {}'.format(kcrossing, crossing_col)
     cost = ' + '.join([dist_cost, grade_cost, crossing_cost])
