@@ -4,41 +4,49 @@ function is written as an actual function that requires specification of the
 input column names. In addition, cost function parameters can be made tunable
 using keyword arguments following required column name arguments.'''
 
+from sqlalchemy.sql import text
 
-def piecewise_linear(col, xlow, xhigh, xmin, control_low, control_high):
-    '''Given description of cost function for e.g. elevation in piecewise
-    linear terms (x axis cutoffs, a zero-cost x axis point, and two control
-    points between them - convex function), return a function that returns
-    a cost from 0 to 1 for a given x point.
 
-    :param col: Name of the column to use as input to this function, e.g.
-                'grade'.
-    :type col: str
-    :param xlow: Low 'cutoff' for input value to function. Values below this
-                 number will return a large or infinite cost.
-    :type xlow: float
-    :param xhigh: Low 'cutoff' for input value to function. Values above this
-                  number will return a large or infinite cost.
-    :type xhigh: float
-    :param xmin: 'ideal' x point - will return cost of 0. For x = elevation
-                 change, this is likely a slightly downhill value (e.g. -0.01)
-    :type xmin: float
-    :param control_low: (x, y)-valued control point for adjusting the shape
-                        of the lines between the xmin and xlow values. The
-                        resulting lines can range from being colinear (slope 1)
-                        or orthogonal - like a step function - and everything
-                        in between. The domain of x is between xmin and xlow,
-                        while the range of y is from 0 to 1.
-    :type control_low: 2-tuple of floats
-    :param control_high: (x, y)-valued control point for adjusting the shape
-                         of the lines between the xmin and xlow values. The
-                         resulting lines can range from being colinear (slope
-                         1) or orthogonal - like a step function - and
-                         everything in between. The domain of x is between xmin
-                         and xlow, while the range of y is from 0 to 1.
-    :type control_high: 2-tuple of floats
+def piecewise_linear(maxdown=-0.09, ideal=-0.01, maxup=0.0833):
+    '''Produces the SQL necessary to calculate a cost function described by
+    three control points:
+    A) The maximum downhill incline (maxdown)
+    B) The ideal, easiest incline (ideal)
+    C) The maximum uphill incline (maxup)
+
+    All are in units of grade, i.e. 1% = 0.01. The y values are set to 1.0 for
+    the maximum inclines and 0 for the ideal incline. The values interpolated
+    are derived from educated guesses and are the subject of future research:
+    clearly, the function should be overall convex, as e.g. a 4% grade is more
+    than twice as 'difficult' as a 2% grade. The exact level of convexity is
+    unclear without more data, however.
+
+    This function currently hard-codes a piecewise approximation of convexity,
+    setting intermediate control points at 1/4 of maximum cost (i.e 0.25)
+    half-way between the max incline points and the ideal incline point.
+
+    It's assumed that maxdown < ideal < maxup. Input values outside of the
+    range of [maxdown, maxup] are given a very large cost.
+
+    :param maxdown: Maximum downhill incline in units of grade (e.g. 1% =
+                    0.01). Must be between 0 and 1.
+    :type maxdown: float
+    :param ideal: Ideal incline in units of grade (e.g. 1% = 0.01). Often
+                  slightly downhill, like -0.01.
+    :type ideal: float
+    :param maxup: Maximum uphill incline in units of grade (e.g. 1% = 0.01).
+                  Must be between 0 and 1.
+    :type maxup: float
+    :param ideal: Ideal incline in units of grade (e.g. 1% = 0.01). Often
+                  slightly downhill, like -0.01.
+    :type ideal: float
 
     '''
+
+    # Input checking/coercion, prevents SQL injection
+    maxdown = float(maxdown)
+    ideal = float(ideal)
+    maxup = float(maxup)
 
     #
     # Function to find the equation for a line
@@ -72,50 +80,61 @@ def piecewise_linear(col, xlow, xhigh, xmin, control_low, control_high):
     # Piecewise part - figure out which function to use to calculate y
     #
 
-    m1, b1 = line_mb([xlow, 1], control_low)
-    m2, b2 = line_mb(control_low, [xmin, 0])
-    m3, b3 = line_mb([xmin, 0], control_high)
-    m4, b4 = line_mb(control_high, [xhigh, 1])
+    # Calculate mid-control points as being half-way between the min and max
+    # values, and with a set y value of 1/4.
+    mid_low = [(maxdown + ideal) / 2, 0.1]
+    mid_high = [(maxup + ideal) / 2, 0.1]
+
+    m1, b1 = line_mb([maxdown, 1], mid_low)
+    m2, b2 = line_mb(mid_low, [ideal, 0])
+    m3, b3 = line_mb([ideal, 0], mid_high)
+    m4, b4 = line_mb(mid_high, [maxup, 1])
 
     # TODO: work around returning infinite/large cost - useful for showing
     # 'bad' routes to users, which may still be informative
     sql = '''
-    CASE WHEN {x} = {xmin} THEN 0.0
-         WHEN ({x} < {xlow}) OR ({x} > {xhigh}) THEN 100.0
-         WHEN {x} < {control_lowx} THEN {m1} * {x} + {b1}
-         WHEN {x} < {xmin} THEN {m2} * {x} + {b2}
-         WHEN {x} < {control_highx} THEN {m3} * {x} + {b3}
-         ELSE {m4} * {x} + {b4}
+    CASE WHEN grade = {ideal} THEN 0.0
+         WHEN (grade < {maxdown}) OR (grade > {maxup}) THEN 1000.0
+         WHEN grade < {mid_low} THEN {m1} * grade + {b1}
+         WHEN grade < {ideal} THEN {m2} * grade + {b2}
+         WHEN grade < {mid_high} THEN {m3} * grade + {b3}
+         ELSE {m4} * grade + {b4}
     END
-    '''
-
-    # FIXME: Use safe SQL (prevent injection attack)
-    sql_fmt = sql.format(x=col, xmin=xmin, xlow=xlow, xhigh=xhigh,
-                         control_lowx=control_low[0],
-                         control_highx=control_high[0],
-                         m1=m1, b1=b1, m2=m2, b2=b2, m3=m3, b3=b3, m4=m4,
-                         b4=b4)
+    '''.format(maxdown=maxdown, ideal=ideal, maxup=maxup, mid_low=mid_low[0],
+               mid_high=mid_high[0], m1=m1, m2=m2, m3=m3, m4=m4, b1=b1, b2=b2,
+               b3=b3, b4=b4)
 
     # Ensure that the value is nonnegative (note: turn this off to debug any
     # apparent routing errors - this will mask some bugs in the cost function)
-    sql_fmt = 'ABS({sql})'.format(sql=sql_fmt)
+    sql = 'ABS({sql})'.format(sql=sql)
 
-    return sql_fmt
+    return sql
 
 
-def manual_wheelchair(dist_col, grade_col, crossing_col, kdist=1.0, kele=1e10,
-                      kcrossing=1e2, xlow=-0.09, xhigh=0.0833, xmin=-0.01,
-                      control_low=[-0.045, 0.3], control_high=[0.04165, 0.3]):
+def manual_wheelchair(kdist=1e6, kele=1e10, kcrossing=1e2, maxdown=-0.09,
+                      ideal=-0.01, maxup=0.0833, avoid_construction=True,
+                      avoid_curbs=True):
     '''Calculates a cost-to-travel that balances distance vs. steepness vs.
     needing to cross the street.
 
     '''
-    dist_cost = '{} * {}'.format(kdist, dist_col)
+    ele_cost = piecewise_linear(maxdown, ideal, maxup)
 
-    grade_base = piecewise_linear(grade_col, xlow, xhigh, xmin, control_low,
-                                  control_high)
-    grade_cost = '{kele} * {base}'.format(kele=kele, base=grade_base)
-    crossing_cost = '{} * {}'.format(kcrossing, crossing_col)
-    cost = ' + '.join([dist_cost, grade_cost, crossing_cost])
+    if avoid_construction:
+        kconstruction = 1e12
+    else:
+        kconstruction = 0
+    # TODO: avoid_curbs
+
+    sql = text('''
+    :kdist * length +
+    CASE WHEN iscrossing=1 THEN 0 ELSE :kele * {ele_cost} END +
+    :kcrossing * iscrossing +
+    :kconstruction * construction::integer
+    '''.format(ele_cost=ele_cost))
+
+    cost = sql.bindparams(kdist=kdist, kele=kele, kcrossing=kcrossing,
+                          kconstruction=kconstruction)
+    cost = cost.compile(compile_kwargs={'literal_binds': True})
 
     return cost

@@ -127,34 +127,42 @@ def curbrampsv2():
 
 @app.route('/v2/route.json', methods=['GET'])
 def routev2():
-    # Process arguments
-    # TODO: input validation - return reasonable HTTP errors on bad input.
-    # latlon (required!)
-    waypoints_input = request.args.get('waypoints', None)
-    if waypoints_input is None:
-        return 'Bad request - waypoints parameter is required.'
-    waypoints_input_list = json.loads(waypoints_input)
-    # Consume in pairs
-    waypoints = zip(waypoints_input_list[0::2], waypoints_input_list[1::2])
+    # Test coordinates:
+    #   origin: 47.655883 -122.311994
+    #   destination: 47.659877,-122.316052
+    origin = request.args.get('origin', None)
+    destination = request.args.get('destination', None)
+    if (origin is None) or (destination is None):
+        # TODO: return status code 400
+        return {
+            'status': 'BadInput',
+            'errmessage': 'origin and destination parameters are required.'
+        }
 
     # request route
-    param_names = ['xlow', 'xhigh', 'xmin', 'control_low', 'control_high']
-    params = {}
-    params = {
-        'xlow': -0.09,
-        'xhigh': 0.0833,
-        'xmin': -0.01,
-        'control_low': [-0.045, 0.5],
-        'control_high': [0.04165, 0.5]
-    }
-    costfun = costs.manual_wheelchair(dist_col='length',
-                                      crossing_col='iscrossing',
-                                      grade_col='grade', xlow=params['xlow'],
-                                      xhigh=params['xhigh'],
-                                      xmin=params['xmin'],
-                                      control_low=params['control_low'],
-                                      control_high=params['control_high'])
-    route_response = route.routing_request(list(waypoints), cost=costfun)
+    params = ['avoid', 'maxdown', 'ideal', 'maxup']
+    cost_params = {}
+    for param in params:
+        value = request.args.get(param, None)
+        if value is not None:
+            if param == 'avoid':
+                # Process barriers - pipe-separated e.g. curbs|construction
+                barriers = value.split('|')
+                if 'curbs' in barriers:
+                    cost_params['avoid_curbs'] = True
+                if 'construction' in barriers:
+                    cost_params['avoid_construction'] = True
+            else:
+                cost_params[param] = value
+
+    print(cost_params)
+
+    origin_coords = origin.split(',')
+    dest_coords = destination.split(',')
+
+    route_response = route.routing_request(origin_coords, dest_coords,
+                                           cost=costs.manual_wheelchair,
+                                           cost_kwargs=cost_params)
 
     return jsonify(route_response)
 
@@ -170,7 +178,7 @@ def travelcostv2():
         return 'Bad request - lat and lon parameters are required.'
 
     # Calculate travel time
-    costfun = costs.manual_wheelchair('length', 'grade', 'iscrossing')
+    costfun = costs.manual_wheelchair()
     cost_points = travelcost.travel_cost(lat, lon, costfun, maxcost=10000)
 
     return jsonify(cost_points)

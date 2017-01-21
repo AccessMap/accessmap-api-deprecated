@@ -1,84 +1,73 @@
 from accessmapapi import db
+from sqlalchemy.sql import text
 from . import costs
 import json
 
 
-def routing_request(waypoints, cost=costs.manual_wheelchair):
+def routing_request(origin, destination, cost=costs.manual_wheelchair,
+                    cost_kwargs=None, table='routing'):
     '''Process a routing request, returning a Mapbox-compatible routing JSON
     object.
 
-    :param waypoints: list of coordinates for start, stop locations
-    :type waypoints: list of lists of coordinates
+    :param origin: lat-lon of starting location.
+    :type origin: list of coordinates
+    :param destination: lat-lon of ending location.
+    :type destination: list of coordinates
+    :param cost: SQL-rendering cost function to use
+    :type cost: callable
+    :param cost_kwargs: keyword arguments to pass to the cost function.
+    :type cost_kwargs: dict
 
     '''
-    routing_table = 'routing'
-    # Isolate first and last points
-    origin = waypoints.pop(0)
-    dest = waypoints.pop()
-    # Find sidewalks closest to origin and destination ###
-    routing_vertices_table = routing_table + '_vertices_pgr'
 
-    # BIG FIXME: WOW, these aren't injection safe at all (Bobby Tables...)
-    point_sql = 'ST_SetSRID(ST_Makepoint({}, {}), 4326)'
-    # Note that in geoJSON, the order is [lon, lat], so reversed order here
-    origin_geom = point_sql.format(origin[1], origin[0])
-    dest_geom = point_sql.format(dest[1], dest[0])
+    #
+    # Find sidewalks closest to origin and destination
+    #
+    # FIXME: We should find the closest point (a sidewalk vertex or
+    #        mid-sidewalk, e.g. This requires dynamically adding nodes + edges
+    #        + costs to the table for each request.
+    vertices_table = '{}_vertices_pgr'.format(table)
 
-    # FIXME: The closest node to the selected point is not actually what we
-    # want - that ends up with weird backtracking scenarios. What we want is
-    # something like a new virtual node on the closest edge - i.e. the closest
-    # realistic start point in the real world. I haven't been able to find a
-    # pre-built solution for this in pgRouting. pgr_trsp can start and end at
-    # edges + a distance along that edge, but it may not work easily with
-    # custom cost functions (verify that). We can also roll our own option.
-    # It will add some complication, as we'll need to calculate costs for the
-    # two virtual edges of our virtual node. To do that super accurately, we'd
-    # need to go back to the functions used to label data and apply them again
-    # or approximate new costs (or attributes) on the virtual edges.
-    # FIXME: Once closest-edge selection is implemented, remember to include
-    # sidewalk edges and corners and disclude crossing edges.
-    closest_row_sql = '''  SELECT id
-                             FROM {}
-                         ORDER BY ST_Distance(the_geom, {})
-                            LIMIT 1'''
-    origin_query = closest_row_sql.format(routing_vertices_table, origin_geom)
-    dest_query = closest_row_sql.format(routing_vertices_table, dest_geom)
+    node_sql = text('''
+      SELECT id
+        FROM {}
+    ORDER BY ST_Distance(the_geom, ST_SetSRID(ST_Makepoint(:lon, :lat), 4326))
+       LIMIT 1
+    '''.format(vertices_table))
 
-    result = db.engine.execute(origin_query)
-    start_node = list(result)[0][0]
-    result.close()
-
-    result = db.engine.execute(dest_query)
-    end_node = list(result)[0][0]
-    result.close()
-
-    # Cost function and routing
-    cost_fun = cost
+    nodes = []
+    for waypoint in [origin, destination]:
+        # query = node_sql.bindparams(lon=waypoint[1], lat=waypoint[0])
+        # TODO: make this faster by making it one query, or even incorporate
+        # it into the pgRouting request
+        result = db.engine.execute(node_sql, lon=waypoint[1], lat=waypoint[0])
+        nodes.append(list(result)[0][0])
+        result.close()
 
     ###########################################
     # With start/end nodes, get optimal route #
     ###########################################
     # node_start = 15307
     # node_end = 15308
-    # Origin and Destination nodes in pgRouting vertex table
-    pgr_sql = '''SELECT id::integer,
-                        source::integer,
-                        target::integer,
-                        {}::double precision AS cost
-                   FROM {}'''.format(cost_fun, routing_table)
+
+    # Paramterize the cost function and get SQL back
+    if cost_kwargs is None:
+        cost_kwargs = {}
+    cost_fun = cost(**cost_kwargs)
+
     # Request route - turn geometries directly into GeoJSON
-    route_sql = '''SELECT seq,
-                          id1::integer AS node,
-                          id2::integer AS edge,
-                          cost
-                     FROM pgr_dijkstra('{}',{},{},{},{})'''
-    route_query = route_sql.format(pgr_sql, start_node, end_node, 'false',
-                                   'false')
-    # FIXME: need to catch NULL result from route query, then get geojson
-    # SELECT ST_AsGeoJSON(ST_LineMerge(ST_Collect(route.geom)), 7)
-    output_sql = '''
+    cost_sql = '''
+    SELECT id::integer,
+           source::integer,
+           target::integer,
+           {cost}::double precision AS cost
+      FROM {table}'''.format(cost=cost_fun, table=table)
+
+    output_sql = text('''
     SELECT ST_AsGeoJSON(route.geom, 7),
-           cost
+           cost,
+           grade,
+           construction
       FROM (
             SELECT CASE source
                    WHEN pgr.node
@@ -86,15 +75,25 @@ def routing_request(waypoints, cost=costs.manual_wheelchair):
                    ELSE ST_Reverse(geom)
                     END
                      AS geom,
-                        pgr.cost
-              FROM {}
-              JOIN ({}) AS pgr
+                        pgr.cost,
+                        t.grade,
+                        t.construction
+              FROM {table} t
+              JOIN (SELECT seq,
+                           id1::integer AS node,
+                           id2::integer AS edge,
+                           cost
+                      FROM pgr_dijkstra('{cost}',
+                                        :node1,
+                                        :node2,
+                                        :directed,
+                                        :rcost)) AS pgr
                 ON id = pgr.edge) AS route
-    '''
+    '''.format(table=table, cost=cost_sql))
 
-    output_query = output_sql.format(routing_table, route_query)
+    result = db.engine.execute(output_sql, node1=nodes[0], node2=nodes[1],
+                               directed='false', rcost='false')
 
-    result = db.engine.execute(output_query)
     route_rows = list(result)
     result.close()
     if not route_rows:
@@ -113,7 +112,9 @@ def routing_request(waypoints, cost=costs.manual_wheelchair):
             'type': 'Feature',
             'geometry': geometry,
             'properties': {
-                'cost': row[1]
+                'cost': row[1],
+                'grade': float(row[2]),
+                'construction': bool(row[3])
             }
         }
         segments['features'].append(segment)
@@ -160,10 +161,11 @@ def routing_request(waypoints, cost=costs.manual_wheelchair):
 
     dest_feature = {'type': 'Feature',
                     'geometry': {'type': 'Point',
-                                 'coordinates': [dest[1], dest[0]]},
+                                 'coordinates': [destination[1],
+                                                 destination[0]]},
                     'properties': {}}
     waypoints_feature_list = []
-    for waypoint in waypoints:
+    for waypoint in [origin, destination]:
         waypoint_feature = {'type': 'Feature',
                             'geometry': {'type': 'Point',
                                          'coordinates': waypoint},
