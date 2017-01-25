@@ -117,6 +117,27 @@ def manual_wheelchair(kdist=1e6, kele=1e10, kcrossing=1e2, maxdown=-0.09,
     '''Calculates a cost-to-travel that balances distance vs. steepness vs.
     needing to cross the street.
 
+    :param kdist: scaling factor for length of route traveled.
+    :type kdist: float
+    :param kele: scaling factor for elevation function, which is itself scaled
+                 from 0 to 1.
+    :type kele: float
+    :param kcrossing: scaling factor for cost of crossing the street.
+    :type kcrossing: float
+    :param maxdown: Maximum downhill incline indicated by the user, e.g. -0.1
+                    for 10% downhill.
+    :type maxdown: float
+    :param ideal: Ideal incline indicated by the user, e.g. -0.01 for 1%
+                  downhill.
+    :type ideal: float
+    :param maxup: Maximum uphill incline indicated by the user.
+    :type maxup: float
+    :param avoid_construction: Whether construction should be avoided.
+    :type avoid_construction: bool
+    :param avoid_curbs: Whether curbs should be avoided (currently implies that
+                        crossing has curb ramps on both sides).
+    :type avoid_curbs: bool
+
     '''
     ele_cost = piecewise_linear(maxdown, ideal, maxup)
 
