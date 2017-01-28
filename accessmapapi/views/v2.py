@@ -155,8 +155,6 @@ def routev2():
             else:
                 cost_params[param] = value
 
-    print(cost_params)
-
     origin_coords = origin.split(',')
     dest_coords = destination.split(',')
 

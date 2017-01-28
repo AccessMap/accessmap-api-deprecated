@@ -20,29 +20,9 @@ def routing_request(origin, destination, cost=costs.manual_wheelchair,
 
     '''
 
-    #
-    # Find sidewalks closest to origin and destination
-    #
     # FIXME: We should find the closest point (a sidewalk vertex or
     #        mid-sidewalk, e.g. This requires dynamically adding nodes + edges
     #        + costs to the table for each request.
-    vertices_table = '{}_vertices_pgr'.format(table)
-
-    node_sql = text('''
-      SELECT id
-        FROM {}
-    ORDER BY ST_Distance(the_geom, ST_SetSRID(ST_Makepoint(:lon, :lat), 4326))
-       LIMIT 1
-    '''.format(vertices_table))
-
-    nodes = []
-    for waypoint in [origin, destination]:
-        # query = node_sql.bindparams(lon=waypoint[1], lat=waypoint[0])
-        # TODO: make this faster by making it one query, or even incorporate
-        # it into the pgRouting request
-        result = db.engine.execute(node_sql, lon=waypoint[1], lat=waypoint[0])
-        nodes.append(list(result)[0][0])
-        result.close()
 
     ###########################################
     # With start/end nodes, get optimal route #
@@ -50,48 +30,51 @@ def routing_request(origin, destination, cost=costs.manual_wheelchair,
     # node_start = 15307
     # node_end = 15308
 
-    # Paramterize the cost function and get SQL back
+    # Parameterize the cost function and get SQL back
     if cost_kwargs is None:
         cost_kwargs = {}
     cost_fun = cost(**cost_kwargs)
 
-    # Request route - turn geometries directly into GeoJSON
-    cost_sql = '''
-    SELECT id::integer,
-           source::integer,
-           target::integer,
-           {cost}::double precision AS cost
-      FROM {table}'''.format(cost=cost_fun, table=table)
-
     output_sql = text('''
-    SELECT ST_AsGeoJSON(route.geom, 7),
-           cost,
-           grade,
-           construction
-      FROM (
-            SELECT CASE source
-                   WHEN pgr.node
-                   THEN geom
-                   ELSE ST_Reverse(geom)
-                    END
-                     AS geom,
-                        pgr.cost,
-                        t.grade,
-                        t.construction
-              FROM {table} t
-              JOIN (SELECT seq,
-                           id1::integer AS node,
-                           id2::integer AS edge,
-                           cost
-                      FROM pgr_dijkstra('{cost}',
-                                        :node1,
-                                        :node2,
-                                        :directed,
-                                        :rcost)) AS pgr
-                ON id = pgr.edge) AS route
-    '''.format(table=table, cost=cost_sql))
+    SELECT CASE source
+           WHEN (p.pgr).id1
+           THEN ST_AsGeoJSON(t.geom, 7)
+           ELSE ST_AsGeoJSON(ST_Reverse(t.geom), 7)
+            END
+             AS geom,
+                (p.pgr).cost,
+                t.grade,
+                t.construction
+      FROM {table} t
+      JOIN (SELECT pgr_dijkstra('SELECT id::integer,
+                                        source::integer,
+                                        target::integer,
+                                        {cost}::double precision AS cost
+                                   FROM {table}',
+                                node1.id,
+                                node2.id,
+                                :directed,
+                                :rcost) AS pgr
+              FROM (  SELECT id
+                        FROM {table}_vertices_pgr
+                    ORDER BY ST_Distance(the_geom,
+                                         ST_SetSRID(
+                                            ST_Makepoint(:lon1, :lat1),
+                                            4326))
+                       LIMIT 1) node1,
+                   (  SELECT id
+                        FROM {table}_vertices_pgr
+                    ORDER BY ST_Distance(the_geom,
+                                         ST_SetSRID(
+                                            ST_Makepoint(:lon2, :lat2),
+                                            4326))
+                       LIMIT 1) node2
+            ) p
+        ON id = (p.pgr).id2
+    '''.format(table=table, cost=cost_fun))
 
-    result = db.engine.execute(output_sql, node1=nodes[0], node2=nodes[1],
+    result = db.engine.execute(output_sql, lon1=origin[1], lat1=origin[0],
+                               lon2=destination[1], lat2=destination[0],
                                directed='false', rcost='false')
 
     route_rows = list(result)
