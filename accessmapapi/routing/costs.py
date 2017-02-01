@@ -69,6 +69,9 @@ def piecewise_linear(maxdown=-0.09, ideal=-0.01, maxup=0.0833):
         x2, y2 = pt2
 
         dx = x2 - x1
+        if dx == 0:
+            # Line is vertical, has no meaning - return 0 cost
+            return (0, 0)
         dy = y2 - y1
 
         m = dy / dx
@@ -145,17 +148,23 @@ def manual_wheelchair(kdist=1e6, kele=1e10, kcrossing=1e2, maxdown=-0.09,
         kconstruction = 1e12
     else:
         kconstruction = 0
-    # TODO: avoid_curbs
+
+    if avoid_curbs:
+        kcurb = 1e12
+    else:
+        kcurb = 0
 
     sql = text('''
     :kdist * length +
     CASE WHEN iscrossing=1 THEN 0 ELSE :kele * {ele_cost} END +
+    CASE WHEN iscrossing=1 AND NOT curbramps THEN :kcurb ELSE 0 END +
     :kcrossing * iscrossing +
     :kconstruction * construction::integer
     '''.format(ele_cost=ele_cost))
 
     cost = sql.bindparams(kdist=kdist, kele=kele, kcrossing=kcrossing,
-                          kconstruction=kconstruction)
+                          kconstruction=kconstruction, kcurb=kcurb)
     cost = cost.compile(compile_kwargs={'literal_binds': True})
+    print(cost)
 
     return cost

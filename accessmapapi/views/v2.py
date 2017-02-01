@@ -150,8 +150,12 @@ def routev2():
                 barriers = value.split('|')
                 if 'curbs' in barriers:
                     cost_params['avoid_curbs'] = True
+                else:
+                    cost_params['avoid_curbs'] = False
                 if 'construction' in barriers:
                     cost_params['avoid_construction'] = True
+                else:
+                    cost_params['avoid_construction'] = False
             else:
                 cost_params[param] = value
 
