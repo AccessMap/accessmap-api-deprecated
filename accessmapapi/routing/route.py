@@ -45,66 +45,77 @@ def routing_request(origin, destination, cost=costs.manual_wheelchair,
     # Strategy:
     # 1) Create geography from
     nearest_sql = text('''
-    CREATE TABLE partial AS
-    SELECT ST_Line_Substring(geom, 0.0, frac) part1,
-           ST_Line_Substring(geom, frac, 1.0) part2,
-           ST_Line_Interpolate_Point(geom, frac) point,
+    CREATE TEMPORARY TABLE partial AS
+    SELECT ST_LineSubstring(geom, 0.0, frac) part1,
+           ST_LineSubstring(geom, frac, 1.0) part2,
+           ST_LineInterpolatePoint(geom, frac) point,
            source,
            target,
-           iscrossing,
+           iscrossing::boolean,
            grade,
            curbramps,
-           p2.idx
-    FROM ((  SELECT r.geom,
-                    ST_Line_Locate_Point(
-                        ST_Transform(r.geom, _ST_BestSRID(r.geom, p.point)),
-                        ST_Transform(p.point::geometry,
-                                     _ST_BestSRID(r.geom, p.point))
-                    ) frac,
-                    r.source,
-                    r.target,
-                    r.iscrossing,
-                    r.grade,
-                    r.curbramps,
-                    p.idx
-               FROM routing_noded r,
-                    (SELECT ST_MakePoint(:lon1, :lat1)::geography AS point,
-                    1 AS idx
-                    ) p
-              WHERE NOT r.iscrossing
-           ORDER BY geom::geography <-> p.point
-              LIMIT 1)
-              UNION
-          (  SELECT r.geom,
-                    ST_Line_Locate_Point(
-                        ST_Transform(r.geom, _ST_BestSRID(r.geom, p.point)),
-                        ST_Transform(p.point::geometry,
-                                     _ST_BestSRID(r.geom, p.point))
-                    ) frac,
-                    r.source,
-                    r.target,
-                    r.iscrossing,
-                    r.grade,
-                    r.curbramps,
-                    p.idx
-               FROM routing_noded r,
-                    (SELECT ST_MakePoint(:lon2, :lat2)::geography AS point,
-                    2 AS idx
-                    ) p
-              WHERE NOT r.iscrossing
-           ORDER BY geom::geography <-> p.point
-              LIMIT 1)
-         ) p2
-    ORDER BY p2.idx
+           -11 idx
+      FROM (  SELECT *,
+                     _ST_BestSRID(geom, waypoint) bestsrid,
+                     ST_LineLocatePoint(
+                       ST_Transform(geom, _ST_BestSRID(geom, waypoint)),
+                       ST_Transform(waypoint, _ST_BestSRID(geom, waypoint))
+                     ) frac
+                FROM (  SELECT *,
+                               ST_SetSRID(ST_MakePoint(
+                                        :lon1, :lat1),
+                                        4326
+                               ) AS waypoint
+                          FROM routing_noded
+                      ORDER BY geom <-> ST_SetSRID(
+                                 ST_MakePoint(:lon1, :lat1),
+                                 4326)
+                         LIMIT 10) r
+            ORDER BY ST_Distance(
+                       r.geom::geography,
+                       waypoint::geography
+                     )
+               LIMIT 1) a
+    UNION
+    SELECT ST_LineSubstring(geom, 0.0, frac) part1,
+           ST_LineSubstring(geom, frac, 1.0) part2,
+           ST_LineInterpolatePoint(geom, frac) point,
+           source,
+           target,
+           iscrossing::boolean,
+           grade,
+           curbramps,
+           -12 idx
+      FROM (  SELECT *,
+                     _ST_BestSRID(geom, waypoint) bestsrid,
+                     ST_LineLocatePoint(
+                       ST_Transform(geom, _ST_BestSRID(geom, waypoint)),
+                       ST_Transform(waypoint, _ST_BestSRID(geom, waypoint))
+                     ) frac
+                FROM (  SELECT *,
+                               ST_SetSRID(ST_MakePoint(
+                                        :lon2, :lat2),
+                                        4326
+                               ) AS waypoint
+                          FROM routing_noded
+                      ORDER BY geom <-> ST_SetSRID(
+                                 ST_MakePoint(:lon2, :lat2),
+                                 4326)
+                         LIMIT 10) r
+            ORDER BY ST_Distance(
+                       r.geom::geography,
+                       waypoint::geography
+                     )
+               LIMIT 1) b
     ''')
 
     # Note: offset of -10 is to guarantee all temporary IDs are far away from
     # -1, which is used as a placeholder in the pgr_dijkstra result. Just in
     # case other negative numbers are used...
     temporary_nodes = text('''
-    CREATE VIEW edges_vertices_pgr AS
+    CREATE TEMPORARY VIEW edges_vertices_pgr AS
     SELECT * FROM routing_noded_vertices_pgr
-     UNION (SELECT -1 * row_number() OVER () - 10 AS id,
+     UNION (SELECT idx id,
                    NULL cnt,
                    NULL chk,
                    NULL ein,
@@ -114,7 +125,7 @@ def routing_request(origin, destination, cost=costs.manual_wheelchair,
     ''')
 
     new_edges = text('''
-    CREATE TABLE new_edges AS
+    CREATE TEMPORARY TABLE new_edges AS
     SELECT -1 * (2 * row_number() OVER ()) + 1 - 10 AS id,
            NULL o_id,
            part1 geom,
@@ -123,7 +134,7 @@ def routing_request(origin, destination, cost=costs.manual_wheelchair,
            ST_Length(part1::geography) AS length,
            curbramps,
            source,
-           -1 * row_number() OVER () - 10 AS target,
+           idx target,
            FALSE construction
       FROM partial
      UNION
@@ -134,7 +145,7 @@ def routing_request(origin, destination, cost=costs.manual_wheelchair,
            iscrossing,
            ST_Length(part2::geography) AS length,
            curbramps,
-           -1 * row_number() OVER () - 10 source,
+           idx source,
            target,
            FALSE construction
       FROM partial
@@ -155,7 +166,7 @@ def routing_request(origin, destination, cost=costs.manual_wheelchair,
     ''')
 
     temporary_edges = text('''
-    CREATE VIEW edges AS
+    CREATE TEMPORARY VIEW edges AS
     SELECT id,
            geom,
            grade,
@@ -240,7 +251,6 @@ def routing_request(origin, destination, cost=costs.manual_wheelchair,
                 # 'partial' table. Why?
                 conn.execute('DROP TABLE IF EXISTS partial CASCADE')
                 conn.execute('DROP TABLE IF EXISTS new_edges CASCADE')
-                pass
 
     route_rows = list(result)
     if not route_rows:
