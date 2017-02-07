@@ -2,6 +2,7 @@ from accessmapapi import db
 from sqlalchemy.sql import text
 from . import costs
 import json
+import uuid
 
 
 def routing_request(origin, destination, cost=costs.manual_wheelchair,
@@ -42,10 +43,15 @@ def routing_request(origin, destination, cost=costs.manual_wheelchair,
 
     # Note: the units of the 'routing' table are WGS84, so the distance
     # calculation is not going to be correct (will involve lat degrees).
-    # Strategy:
-    # 1) Create geography from
+
+    # UUID to be used for temporary tables - hopefully prevents locking tables,
+    # enables concurrent requests to db in same session (not sure how to ensure
+    # isolated DB sessions per user, or if that is even desirable)
+
+    table_uuid = str(uuid.uuid4()).replace('-', '')
+
     nearest_sql = text('''
-    CREATE TEMPORARY TABLE partial AS
+    CREATE TEMPORARY TABLE partial{uuid} AS
     SELECT ST_LineSubstring(geom, 0.0, frac) part1,
            ST_LineSubstring(geom, frac, 1.0) part2,
            ST_LineInterpolatePoint(geom, frac) point,
@@ -107,13 +113,13 @@ def routing_request(origin, destination, cost=costs.manual_wheelchair,
                        waypoint::geography
                      )
                LIMIT 1) b
-    ''')
+    '''.format(uuid=table_uuid))
 
     # Note: offset of -10 is to guarantee all temporary IDs are far away from
     # -1, which is used as a placeholder in the pgr_dijkstra result. Just in
     # case other negative numbers are used...
     temporary_nodes = text('''
-    CREATE TEMPORARY VIEW edges_vertices_pgr AS
+    CREATE TEMPORARY TABLE edges{uuid}_vertices_pgr AS
     SELECT * FROM routing_noded_vertices_pgr
      UNION (SELECT idx id,
                    NULL cnt,
@@ -121,11 +127,11 @@ def routing_request(origin, destination, cost=costs.manual_wheelchair,
                    NULL ein,
                    NULL eout,
                    point the_geom
-              FROM partial)
-    ''')
+              FROM partial{uuid})
+    '''.format(uuid=table_uuid))
 
     new_edges = text('''
-    CREATE TEMPORARY TABLE new_edges AS
+    CREATE TEMPORARY TABLE new_edges{uuid} AS
     SELECT -1 * (2 * row_number() OVER ()) + 1 - 10 AS id,
            NULL o_id,
            part1 geom,
@@ -136,7 +142,7 @@ def routing_request(origin, destination, cost=costs.manual_wheelchair,
            source,
            idx target,
            FALSE construction
-      FROM partial
+      FROM partial{uuid}
      UNION
     SELECT -1 * (2 * row_number() OVER ()) - 10 AS id,
            NULL o_id,
@@ -148,8 +154,8 @@ def routing_request(origin, destination, cost=costs.manual_wheelchair,
            idx source,
            target,
            FALSE construction
-      FROM partial
-    ''')
+      FROM partial{uuid}
+    '''.format(uuid=table_uuid))
 
     # Note: 'grade' value is kept because we don't have high enough resolution
     # (in most cases) to reliably do short distances. 'curbramps' value is
@@ -159,14 +165,14 @@ def routing_request(origin, destination, cost=costs.manual_wheelchair,
     # Fill in construction
     # FIXME: units are in degrees - about 10 cm in this case. No good!
     construction_sql = ('''
-    UPDATE new_edges ne
+    UPDATE new_edges{uuid} ne
        SET construction = TRUE
       FROM construction c
      WHERE ST_DWithin(ne.geom::geography, c.geom::geography, 0.1)
-    ''')
+    '''.format(uuid=table_uuid))
 
     temporary_edges = text('''
-    CREATE TEMPORARY VIEW edges AS
+    CREATE TEMPORARY TABLE edges{uuid} AS
     SELECT id,
            geom,
            grade,
@@ -187,8 +193,9 @@ def routing_request(origin, destination, cost=costs.manual_wheelchair,
            construction,
            source,
            target
-      FROM new_edges
-    ''')
+      FROM new_edges{uuid};
+    CREATE UNIQUE INDEX edges{uuid}_pkey ON edges{uuid} (id);
+    '''.format(uuid=table_uuid))
 
     ###########################################
     # With start/end nodes, get optimal route #
@@ -215,12 +222,12 @@ def routing_request(origin, destination, cost=costs.manual_wheelchair,
                 t.construction,
                 (p.pgr).seq,
                 (p.pgr).id2
-      FROM edges t
+      FROM edges{uuid} t
       JOIN (SELECT pgr_dijkstra('SELECT id::integer,
                                         source::integer,
                                         target::integer,
                                         {cost}::double precision AS cost
-                                   FROM edges',
+                                   FROM edges{uuid}',
                                 -11,
                                 -12,
                                 false,
@@ -228,7 +235,7 @@ def routing_request(origin, destination, cost=costs.manual_wheelchair,
             ) p
         ON id = (p.pgr).id2
     ORDER BY (p.pgr).seq
-    '''.format(cost=cost_fun)
+    '''.format(cost=cost_fun, uuid=table_uuid)
 
     with db.engine.connect() as conn:
         with conn.begin() as trans:
@@ -251,6 +258,8 @@ def routing_request(origin, destination, cost=costs.manual_wheelchair,
                 # 'partial' table. Why?
                 conn.execute('DROP TABLE IF EXISTS partial CASCADE')
                 conn.execute('DROP TABLE IF EXISTS new_edges CASCADE')
+                conn.execute('DROP TABLE IF EXISTS edges CASCADE')
+                conn.execute('DROP TABLE IF EXISTS edges_vertices_pgr CASCADE')
 
     route_rows = list(result)
     if not route_rows:
