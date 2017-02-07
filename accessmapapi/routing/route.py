@@ -51,19 +51,22 @@ def routing_request(origin, destination, cost=costs.manual_wheelchair,
            target,
            iscrossing,
            grade,
-           curbramps
+           curbramps,
+           p2.idx
     FROM ((   SELECT r.geom,
                     ST_Line_Locate_Point(r.geom, p.point) frac,
                     r.source,
                     r.target,
                     r.iscrossing,
                     r.grade,
-                    r.curbramps
+                    r.curbramps,
+                    p.idx
                FROM routing r,
                     (SELECT ST_SetSRID(
                        ST_MakePoint(:lon1, :lat1),
                        4326
-                     ) AS point
+                     ) AS point,
+                    1 AS idx
                     ) p
               WHERE r.iscrossing = 0
            ORDER BY geom <-> p.point
@@ -75,17 +78,20 @@ def routing_request(origin, destination, cost=costs.manual_wheelchair,
                     r.target,
                     r.iscrossing,
                     r.grade,
-                    r.curbramps
+                    r.curbramps,
+                    p.idx
                FROM routing r,
                     (SELECT ST_SetSRID(
                        ST_MakePoint(:lon2, :lat2),
                        4326
-                     ) AS point
+                     ) AS point,
+                    2 AS idx
                     ) p
               WHERE r.iscrossing = 0
            ORDER BY geom <-> p.point
               LIMIT 1)
          ) p2
+    ORDER BY p2.idx
     ''')
 
     # Note: offset of -10 is to guarantee all temporary IDs are far away from
@@ -113,7 +119,7 @@ def routing_request(origin, destination, cost=costs.manual_wheelchair,
            ST_Length(part1::geography) AS length,
            curbramps,
            source,
-           -1 * row_number() OVER () AS target,
+           -1 * row_number() OVER () - 10 AS target,
            FALSE construction
       FROM partial
      UNION
@@ -124,7 +130,7 @@ def routing_request(origin, destination, cost=costs.manual_wheelchair,
            iscrossing,
            ST_Length(part2::geography) AS length,
            curbramps,
-           -1 * row_number() OVER () source,
+           -1 * row_number() OVER () - 10 source,
            target,
            FALSE construction
       FROM partial
@@ -180,8 +186,10 @@ def routing_request(origin, destination, cost=costs.manual_wheelchair,
         cost_kwargs = {}
     cost_fun = cost(**cost_kwargs)
 
+    # Note: Node IDs 11 and 12 are hard-coded, will need to be replaced if
+    # more than 2 waypoints are ever needed
     output_sql = text('''
-    SELECT CASE source
+    SELECT CASE t.source
            WHEN (p.pgr).id1
            THEN ST_AsGeoJSON(t.geom, 7)
            ELSE ST_AsGeoJSON(ST_Reverse(t.geom), 7)
@@ -199,8 +207,8 @@ def routing_request(origin, destination, cost=costs.manual_wheelchair,
                                         target::integer,
                                         {cost}::double precision AS cost
                                    FROM edges',
-                                -1,
-                                -2,
+                                -11,
+                                -12,
                                 false,
                                 false) AS pgr
             ) p
