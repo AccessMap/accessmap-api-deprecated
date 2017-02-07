@@ -42,6 +42,8 @@ def routing_request(origin, destination, cost=costs.manual_wheelchair,
 
     # Note: the units of the 'routing' table are WGS84, so the distance
     # calculation is not going to be correct (will involve lat degrees).
+    # Strategy:
+    # 1) Create geography from
     nearest_sql = text('''
     CREATE TABLE partial AS
     SELECT ST_Line_Substring(geom, 0.0, frac) part1,
@@ -54,7 +56,11 @@ def routing_request(origin, destination, cost=costs.manual_wheelchair,
            curbramps,
            p2.idx
     FROM ((  SELECT r.geom,
-                    ST_Line_Locate_Point(r.geom, p.point) frac,
+                    ST_Line_Locate_Point(
+                        ST_Transform(r.geom, _ST_BestSRID(r.geom, p.point)),
+                        ST_Transform(p.point::geometry,
+                                     _ST_BestSRID(r.geom, p.point))
+                    ) frac,
                     r.source,
                     r.target,
                     r.iscrossing,
@@ -62,18 +68,19 @@ def routing_request(origin, destination, cost=costs.manual_wheelchair,
                     r.curbramps,
                     p.idx
                FROM routing_noded r,
-                    (SELECT ST_SetSRID(
-                       ST_MakePoint(:lon1, :lat1),
-                       4326
-                     ) AS point,
+                    (SELECT ST_MakePoint(:lon1, :lat1)::geography AS point,
                     1 AS idx
                     ) p
               WHERE NOT r.iscrossing
-           ORDER BY geom::geography <-> p.point::geography
+           ORDER BY geom::geography <-> p.point
               LIMIT 1)
               UNION
           (  SELECT r.geom,
-                    ST_Line_Locate_Point(r.geom, p.point) frac,
+                    ST_Line_Locate_Point(
+                        ST_Transform(r.geom, _ST_BestSRID(r.geom, p.point)),
+                        ST_Transform(p.point::geometry,
+                                     _ST_BestSRID(r.geom, p.point))
+                    ) frac,
                     r.source,
                     r.target,
                     r.iscrossing,
@@ -81,14 +88,11 @@ def routing_request(origin, destination, cost=costs.manual_wheelchair,
                     r.curbramps,
                     p.idx
                FROM routing_noded r,
-                    (SELECT ST_SetSRID(
-                       ST_MakePoint(:lon2, :lat2),
-                       4326
-                     ) AS point,
+                    (SELECT ST_MakePoint(:lon2, :lat2)::geography AS point,
                     2 AS idx
                     ) p
               WHERE NOT r.iscrossing
-           ORDER BY geom::geography <-> p.point::geography
+           ORDER BY geom::geography <-> p.point
               LIMIT 1)
          ) p2
     ORDER BY p2.idx
