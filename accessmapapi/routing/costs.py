@@ -156,9 +156,9 @@ def manual_wheelchair(kdist=1e6, kele=1e10, kcrossing=1e2, maxdown=-0.09,
 
     sql = text('''
     :kdist * length +
-    CASE WHEN iscrossing=1 THEN 0 ELSE :kele * {ele_cost} END +
-    CASE WHEN iscrossing=1 AND NOT curbramps THEN :kcurb ELSE 0 END +
-    :kcrossing * iscrossing +
+    CASE WHEN iscrossing THEN 0 ELSE :kele * {ele_cost} END +
+    CASE WHEN NOT iscrossing AND NOT curbramps THEN :kcurb ELSE 0 END +
+    :kcrossing * iscrossing::integer +
     :kconstruction * construction::integer
     '''.format(ele_cost=ele_cost))
 

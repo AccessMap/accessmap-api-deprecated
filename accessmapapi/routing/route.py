@@ -5,7 +5,7 @@ import json
 
 
 def routing_request(origin, destination, cost=costs.manual_wheelchair,
-                    cost_kwargs=None, table='routing'):
+                    cost_kwargs=None):
     '''Process a routing request, returning a Mapbox-compatible routing JSON
     object.
 
@@ -61,14 +61,14 @@ def routing_request(origin, destination, cost=costs.manual_wheelchair,
                     r.grade,
                     r.curbramps,
                     p.idx
-               FROM routing r,
+               FROM routing_noded r,
                     (SELECT ST_SetSRID(
                        ST_MakePoint(:lon1, :lat1),
                        4326
                      ) AS point,
                     1 AS idx
                     ) p
-              WHERE r.iscrossing = 0
+              WHERE NOT r.iscrossing
            ORDER BY geom <-> p.point
               LIMIT 1)
               UNION
@@ -80,14 +80,14 @@ def routing_request(origin, destination, cost=costs.manual_wheelchair,
                     r.grade,
                     r.curbramps,
                     p.idx
-               FROM routing r,
+               FROM routing_noded r,
                     (SELECT ST_SetSRID(
                        ST_MakePoint(:lon2, :lat2),
                        4326
                      ) AS point,
                     2 AS idx
                     ) p
-              WHERE r.iscrossing = 0
+              WHERE NOT r.iscrossing
            ORDER BY geom <-> p.point
               LIMIT 1)
          ) p2
@@ -99,7 +99,7 @@ def routing_request(origin, destination, cost=costs.manual_wheelchair,
     # case other negative numbers are used...
     temporary_nodes = text('''
     CREATE VIEW edges_vertices_pgr AS
-    SELECT * FROM routing_vertices_pgr
+    SELECT * FROM routing_noded_vertices_pgr
      UNION (SELECT -1 * row_number() OVER () - 10 AS id,
                    NULL cnt,
                    NULL chk,
@@ -161,7 +161,7 @@ def routing_request(origin, destination, cost=costs.manual_wheelchair,
            construction,
            source,
            target
-      FROM routing
+      FROM routing_noded
     UNION
     SELECT id,
            geom,
@@ -188,7 +188,7 @@ def routing_request(origin, destination, cost=costs.manual_wheelchair,
 
     # Note: Node IDs 11 and 12 are hard-coded, will need to be replaced if
     # more than 2 waypoints are ever needed
-    output_sql = text('''
+    output_sql = '''
     SELECT CASE t.source
            WHEN (p.pgr).id1
            THEN ST_AsGeoJSON(t.geom, 7)
@@ -199,7 +199,6 @@ def routing_request(origin, destination, cost=costs.manual_wheelchair,
                 t.grade,
                 t.construction,
                 (p.pgr).seq,
-                (p.pgr).id1,
                 (p.pgr).id2
       FROM edges t
       JOIN (SELECT pgr_dijkstra('SELECT id::integer,
@@ -214,7 +213,7 @@ def routing_request(origin, destination, cost=costs.manual_wheelchair,
             ) p
         ON id = (p.pgr).id2
     ORDER BY (p.pgr).seq
-    '''.format(cost=cost_fun))
+    '''.format(cost=cost_fun)
 
     with db.engine.connect() as conn:
         with conn.begin() as trans:
