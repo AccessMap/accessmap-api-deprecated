@@ -165,6 +165,5 @@ def manual_wheelchair(kdist=1e6, kele=1e10, kcrossing=1e2, maxdown=-0.09,
     cost = sql.bindparams(kdist=kdist, kele=kele, kcrossing=kcrossing,
                           kconstruction=kconstruction, kcurb=kcurb)
     cost = cost.compile(compile_kwargs={'literal_binds': True})
-    print(cost)
 
     return cost

@@ -19,10 +19,155 @@ def routing_request(origin, destination, cost=costs.manual_wheelchair,
     :type cost_kwargs: dict
 
     '''
+    #
+    # Strategy:
+    # 1) Find nearest edge/node in table.
+    # 2) If node, remember and use directly in routing later
+    # 3) If edge, create new node at nearest point along with two new edges,
+    #    one for each side of that point (e.g. middle of the block is closest?
+    #    need to create path that goes one direct, one that goes the other).
+    # 4) Put the edges in a new temporary table and re-derive its columns that
+    #    get used in routing. Namely, barriers will need to be re-evaluated
+    #    spatially - construction may only effect one of the new edges, e.g.
+    # 5) Create temporary routing table view as union between original one and
+    #    new temporary one that includes the two new vertices
+    # 6) Create temporary routing vertex table view as union between original
+    #    one and new temporary one (manually-created vertex table).
+    # 7) Do routing on the views. The session closes after the routing query,
+    #    and the temporary views + tables disappear.
 
-    # FIXME: We should find the closest point (a sidewalk vertex or
-    #        mid-sidewalk, e.g. This requires dynamically adding nodes + edges
-    #        + costs to the table for each request.
+    #
+    # Find the nearest edge/node in the table
+    #
+
+    # Note: the units of the 'routing' table are WGS84, so the distance
+    # calculation is not going to be correct (will involve lat degrees).
+    nearest_sql = text('''
+    CREATE TABLE partial AS
+    SELECT ST_Line_Substring(geom, 0.0, frac) part1,
+           ST_Line_Substring(geom, frac, 1.0) part2,
+           ST_Line_Interpolate_Point(geom, frac) point,
+           source,
+           target,
+           iscrossing,
+           grade,
+           curbramps
+    FROM ((   SELECT r.geom,
+                    ST_Line_Locate_Point(r.geom, p.point) frac,
+                    r.source,
+                    r.target,
+                    r.iscrossing,
+                    r.grade,
+                    r.curbramps
+               FROM routing r,
+                    (SELECT ST_SetSRID(
+                       ST_MakePoint(:lon1, :lat1),
+                       4326
+                     ) AS point
+                    ) p
+              WHERE r.iscrossing = 0
+           ORDER BY geom <-> p.point
+              LIMIT 1)
+              UNION
+          (  SELECT r.geom,
+                    ST_Line_Locate_Point(r.geom, p.point) frac,
+                    r.source,
+                    r.target,
+                    r.iscrossing,
+                    r.grade,
+                    r.curbramps
+               FROM routing r,
+                    (SELECT ST_SetSRID(
+                       ST_MakePoint(:lon2, :lat2),
+                       4326
+                     ) AS point
+                    ) p
+              WHERE r.iscrossing = 0
+           ORDER BY geom <-> p.point
+              LIMIT 1)
+         ) p2
+    ''')
+
+    # Note: offset of -10 is to guarantee all temporary IDs are far away from
+    # -1, which is used as a placeholder in the pgr_dijkstra result. Just in
+    # case other negative numbers are used...
+    temporary_nodes = text('''
+    CREATE VIEW edges_vertices_pgr AS
+    SELECT * FROM routing_vertices_pgr
+     UNION (SELECT -1 * row_number() OVER () - 10 AS id,
+                   NULL cnt,
+                   NULL chk,
+                   NULL ein,
+                   NULL eout,
+                   point the_geom
+              FROM partial)
+    ''')
+
+    new_edges = text('''
+    CREATE TABLE new_edges AS
+    SELECT -1 * (2 * row_number() OVER ()) + 1 - 10 AS id,
+           NULL o_id,
+           part1 geom,
+           grade,
+           iscrossing,
+           ST_Length(part1::geography) AS length,
+           curbramps,
+           source,
+           -1 * row_number() OVER () AS target,
+           FALSE construction
+      FROM partial
+     UNION
+    SELECT -1 * (2 * row_number() OVER ()) - 10 AS id,
+           NULL o_id,
+           part2 geom,
+           grade,
+           iscrossing,
+           ST_Length(part2::geography) AS length,
+           curbramps,
+           -1 * row_number() OVER () source,
+           target,
+           FALSE construction
+      FROM partial
+    ''')
+
+    # Note: 'grade' value is kept because we don't have high enough resolution
+    # (in most cases) to reliably do short distances. 'curbramps' value is
+    # kept because it still implies the presence or basence of a curb ramp at
+    # each end.
+
+    # Fill in construction
+    # FIXME: units are in degrees - about 10 cm in this case. No good!
+    construction_sql = ('''
+    UPDATE new_edges ne
+       SET construction = TRUE
+      FROM construction c
+     WHERE ST_DWithin(ne.geom, c.geom, 0.000001)
+    ''')
+
+    temporary_edges = text('''
+    CREATE VIEW edges AS
+    SELECT id,
+           geom,
+           grade,
+           length,
+           iscrossing,
+           curbramps,
+           construction,
+           source,
+           target
+      FROM routing
+    UNION
+    SELECT id,
+           geom,
+           grade,
+           length,
+           iscrossing,
+           curbramps,
+           construction,
+           source,
+           target
+      FROM new_edges
+    ''')
 
     ###########################################
     # With start/end nodes, get optimal route #
@@ -44,41 +189,49 @@ def routing_request(origin, destination, cost=costs.manual_wheelchair,
              AS geom,
                 (p.pgr).cost,
                 t.grade,
-                t.construction
-      FROM {table} t
+                t.construction,
+                (p.pgr).seq,
+                (p.pgr).id1,
+                (p.pgr).id2
+      FROM edges t
       JOIN (SELECT pgr_dijkstra('SELECT id::integer,
                                         source::integer,
                                         target::integer,
                                         {cost}::double precision AS cost
-                                   FROM {table}',
-                                node1.id,
-                                node2.id,
-                                :directed,
-                                :rcost) AS pgr
-              FROM (  SELECT id
-                        FROM {table}_vertices_pgr
-                    ORDER BY ST_Distance(the_geom,
-                                         ST_SetSRID(
-                                            ST_Makepoint(:lon1, :lat1),
-                                            4326))
-                       LIMIT 1) node1,
-                   (  SELECT id
-                        FROM {table}_vertices_pgr
-                    ORDER BY ST_Distance(the_geom,
-                                         ST_SetSRID(
-                                            ST_Makepoint(:lon2, :lat2),
-                                            4326))
-                       LIMIT 1) node2
+                                   FROM edges',
+                                -1,
+                                -2,
+                                false,
+                                false) AS pgr
             ) p
         ON id = (p.pgr).id2
-    '''.format(table=table, cost=cost_fun))
+    ORDER BY (p.pgr).seq
+    '''.format(cost=cost_fun))
 
-    result = db.engine.execute(output_sql, lon1=origin[1], lat1=origin[0],
-                               lon2=destination[1], lat2=destination[0],
-                               directed='false', rcost='false')
+    with db.engine.connect() as conn:
+        with conn.begin() as trans:
+            try:
+                conn.execute(nearest_sql, lon1=origin[1], lat1=origin[0],
+                             lon2=destination[1], lat2=destination[0])
+                conn.execute(temporary_nodes)
+                conn.execute(new_edges)
+                conn.execute(construction_sql)
+                conn.execute(temporary_edges)
+                result = conn.execute(output_sql)
+                trans.commit()
+            except:
+                trans.rollback()
+                raise
+            finally:
+                # FIXME: this shouldn't happen if each connection launched a
+                # new session (i.e. temporary table should be non-shared).
+                # But if this line is removed, subsequent queries find the
+                # 'partial' table. Why?
+                conn.execute('DROP TABLE IF EXISTS partial CASCADE')
+                conn.execute('DROP TABLE IF EXISTS new_edges CASCADE')
+                pass
 
     route_rows = list(result)
-    result.close()
     if not route_rows:
         return {'code': 'NoRoute',
                 'waypoints': [],
