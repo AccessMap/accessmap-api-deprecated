@@ -150,7 +150,7 @@ def manual_wheelchair(kdist=1e6, kele=1e10, kcrossing=1e2, maxdown=-0.09,
         kconstruction = 0
 
     if avoid_curbs:
-        kcurb = 1e12
+        kcurb = 1e14
     else:
         kcurb = 0
 
