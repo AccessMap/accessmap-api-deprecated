@@ -53,7 +53,7 @@ def routing_request(origin, destination, cost=costs.manual_wheelchair,
            grade,
            curbramps,
            p2.idx
-    FROM ((   SELECT r.geom,
+    FROM ((  SELECT r.geom,
                     ST_Line_Locate_Point(r.geom, p.point) frac,
                     r.source,
                     r.target,
@@ -69,7 +69,7 @@ def routing_request(origin, destination, cost=costs.manual_wheelchair,
                     1 AS idx
                     ) p
               WHERE NOT r.iscrossing
-           ORDER BY geom <-> p.point
+           ORDER BY geom::geography <-> p.point::geography
               LIMIT 1)
               UNION
           (  SELECT r.geom,
@@ -88,7 +88,7 @@ def routing_request(origin, destination, cost=costs.manual_wheelchair,
                     2 AS idx
                     ) p
               WHERE NOT r.iscrossing
-           ORDER BY geom <-> p.point
+           ORDER BY geom::geography <-> p.point::geography
               LIMIT 1)
          ) p2
     ORDER BY p2.idx
@@ -147,7 +147,7 @@ def routing_request(origin, destination, cost=costs.manual_wheelchair,
     UPDATE new_edges ne
        SET construction = TRUE
       FROM construction c
-     WHERE ST_DWithin(ne.geom, c.geom, 0.000001)
+     WHERE ST_DWithin(ne.geom::geography, c.geom::geography, 0.1)
     ''')
 
     temporary_edges = text('''
