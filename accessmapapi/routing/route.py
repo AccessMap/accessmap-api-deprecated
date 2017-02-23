@@ -256,10 +256,10 @@ def routing_request(origin, destination, cost=costs.manual_wheelchair,
                 # new session (i.e. temporary table should be non-shared).
                 # But if this line is removed, subsequent queries find the
                 # 'partial' table. Why?
-                conn.execute('DROP TABLE IF EXISTS partial CASCADE')
-                conn.execute('DROP TABLE IF EXISTS new_edges CASCADE')
-                conn.execute('DROP TABLE IF EXISTS edges CASCADE')
-                conn.execute('DROP TABLE IF EXISTS edges_vertices_pgr CASCADE')
+                template = 'DROP TABLE IF EXISTS {} CASCADE'
+                for name in ['partial{}', 'new_edges{}', 'edges{}',
+                             'edges{}_vertices_pgr']:
+                    conn.execute(template.format(name.format(table_uuid)))
 
     route_rows = list(result)
     if not route_rows:
