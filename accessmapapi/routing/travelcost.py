@@ -4,7 +4,7 @@ import json
 from accessmapapi import db
 
 
-def travel_cost(lat, lon, costfun, table='routing', maxcost=1000):
+def travel_cost(lat, lon, costfun, table='routing_noded', maxcost=1000):
     '''Given a lat, lon input and cost function (SQL string), calculate the
     time to travel out to a maximum cost value.'''
 
@@ -19,6 +19,10 @@ def travel_cost(lat, lon, costfun, table='routing', maxcost=1000):
     result = db.engine.execute(origin_sql)
     origin = result.fetchone()[0]
     result.close()
+    print(origin)
+
+    costfun = 'length'
+    maxcost = 1000
 
     travel_cost_sql = """
     SELECT seq,
@@ -29,7 +33,7 @@ def travel_cost(lat, lon, costfun, table='routing', maxcost=1000):
            'SELECT id::integer,
                    source::int4,
                    target::int4,
-                   {} AS cost
+                   ({})::double precision AS cost
               FROM {}',
            {},
            {},
