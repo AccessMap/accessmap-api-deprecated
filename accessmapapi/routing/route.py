@@ -338,8 +338,13 @@ def routing_request(origin, destination, cost=costs.manual_wheelchair,
     waypoints_feature_list = []
     for waypoint in [origin, destination]:
         waypoint_feature = {'type': 'Feature',
-                            'geometry': {'type': 'Point',
-                                         'coordinates': waypoint},
+                            'geometry': {
+                              'type': 'Point',
+                              'coordinates': [
+                                float(waypoint[0]),
+                                float(waypoint[1])
+                              ]
+                            },
                             'properties': {}}
         waypoints_feature_list.append(waypoint_feature)
 
