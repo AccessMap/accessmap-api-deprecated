@@ -141,7 +141,10 @@ def routev2():
 
     # request route
     params = ['avoid', 'maxdown', 'ideal', 'maxup']
-    cost_params = {}
+    cost_params = {
+        'avoid_curbs': False,
+        'avoid_construction': False
+    }
     for param in params:
         value = request.args.get(param, None)
         if value is not None:
@@ -150,12 +153,8 @@ def routev2():
                 barriers = value.split('|')
                 if 'curbs' in barriers:
                     cost_params['avoid_curbs'] = True
-                else:
-                    cost_params['avoid_curbs'] = False
                 if 'construction' in barriers:
                     cost_params['avoid_construction'] = True
-                else:
-                    cost_params['avoid_construction'] = False
             else:
                 cost_params[param] = value
 
