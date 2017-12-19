@@ -14,12 +14,12 @@ def piecewise_linear(maxdown=-0.09, ideal=-0.01, maxup=0.0833):
     B) The ideal, easiest incline (ideal)
     C) The maximum uphill incline (maxup)
 
-    All are in units of grade, i.e. 1% = 0.01. The y values are set to 1.0 for
-    the maximum inclines and 0 for the ideal incline. The values interpolated
-    are derived from educated guesses and are the subject of future research:
-    clearly, the function should be overall convex, as e.g. a 4% grade is more
-    than twice as 'difficult' as a 2% grade. The exact level of convexity is
-    unclear without more data, however.
+    All are in units of incline, i.e. 1% = 0.01. The y values are set to 1.0
+    for the maximum inclines and 0 for the ideal incline. The values
+    interpolated are derived from educated guesses and are the subject of
+    future research: clearly, the function should be overall convex, as e.g. a
+    4% incline is more than twice as 'difficult' as a 2% incline. The exact
+    level of convexity is unclear without more data, however.
 
     This function currently hard-codes a piecewise approximation of convexity,
     setting intermediate control points at 1/4 of maximum cost (i.e 0.25)
@@ -28,16 +28,16 @@ def piecewise_linear(maxdown=-0.09, ideal=-0.01, maxup=0.0833):
     It's assumed that maxdown < ideal < maxup. Input values outside of the
     range of [maxdown, maxup] are given a very large cost.
 
-    :param maxdown: Maximum downhill incline in units of grade (e.g. 1% =
+    :param maxdown: Maximum downhill incline in units of incline (e.g. 1% =
                     0.01). Must be between 0 and 1.
     :type maxdown: float
-    :param ideal: Ideal incline in units of grade (e.g. 1% = 0.01). Often
+    :param ideal: Ideal incline in units of incline (e.g. 1% = 0.01). Often
                   slightly downhill, like -0.01.
     :type ideal: float
-    :param maxup: Maximum uphill incline in units of grade (e.g. 1% = 0.01).
+    :param maxup: Maximum uphill incline in units of incline (e.g. 1% = 0.01).
                   Must be between 0 and 1.
     :type maxup: float
-    :param ideal: Ideal incline in units of grade (e.g. 1% = 0.01). Often
+    :param ideal: Ideal incline in units of incline (e.g. 1% = 0.01). Often
                   slightly downhill, like -0.01.
     :type ideal: float
 
@@ -96,12 +96,12 @@ def piecewise_linear(maxdown=-0.09, ideal=-0.01, maxup=0.0833):
     # TODO: work around returning infinite/large cost - useful for showing
     # 'bad' routes to users, which may still be informative
     sql = '''
-    CASE WHEN grade = {ideal} THEN 0.0
-         WHEN (grade < {maxdown}) OR (grade > {maxup}) THEN 1000.0
-         WHEN grade < {mid_low} THEN {m1} * grade + {b1}
-         WHEN grade < {ideal} THEN {m2} * grade + {b2}
-         WHEN grade < {mid_high} THEN {m3} * grade + {b3}
-         ELSE {m4} * grade + {b4}
+    CASE WHEN incline = {ideal} THEN 0.0
+         WHEN (incline < {maxdown}) OR (incline > {maxup}) THEN 1000.0
+         WHEN incline < {mid_low} THEN {m1} * incline + {b1}
+         WHEN incline < {ideal} THEN {m2} * incline + {b2}
+         WHEN incline < {mid_high} THEN {m3} * incline + {b3}
+         ELSE {m4} * incline + {b4}
     END
     '''.format(maxdown=maxdown, ideal=ideal, maxup=maxup, mid_low=mid_low[0],
                mid_high=mid_high[0], m1=m1, m2=m2, m3=m3, m4=m4, b1=b1, b2=b2,

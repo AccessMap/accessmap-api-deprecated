@@ -2,7 +2,6 @@ from accessmapapi import app, db, models, sql_utils
 from accessmapapi.routing import costs, route, travelcost
 from flask import jsonify, request
 import geoalchemy2.functions as gfunc
-# import geoalchemy2 as ga
 import geojson
 import json
 
@@ -12,34 +11,34 @@ def sidewalksv2():
     table = models.Sidewalks
     bbox = request.args.get('bbox')
     all_rows = request.args.get('all')
-    geojson_query = gfunc.ST_AsGeoJSON(table.geom, 7)
-    geojson_geom = geojson_query.label('geom')
+    geojson_query = gfunc.ST_AsGeoJSON(table.geog, 8)
+    geojson_geog = geojson_query.label('geog')
     if all_rows == 'true':
         select = db.session.query(table.id,
-                                  geojson_geom,
-                                  table.grade)
+                                  geojson_geog,
+                                  table.incline)
         result = select.all()
     else:
         if not bbox:
             select = db.session.query(table.id,
-                                      geojson_geom,
-                                      table.grade)
+                                      geojson_geog,
+                                      table.incline)
             result = select.limit(10).all()
         else:
             bounds = [float(b) for b in bbox.split(',')]
-            in_bbox = sql_utils.in_bbox(table.geom, bounds)
+            in_bbox = sql_utils.in_bbox(table.geog, bounds)
             select = db.session.query(table.id,
-                                      geojson_geom,
-                                      table.grade)
+                                      geojson_geog,
+                                      table.incline)
             result = select.filter(in_bbox).all()
 
     feature_collection = geojson.FeatureCollection([])
     for row in result:
         feature = geojson.Feature()
-        geometry = json.loads(row.geom)
+        geometry = json.loads(row.geog)
         feature['geometry'] = geometry
         feature['properties'] = {'id': row.id,
-                                 'grade': str(round(row.grade, 3))}
+                                 'incline': str(round(row.incline, 3))}
         feature_collection['features'].append(feature)
 
     return jsonify(feature_collection)
@@ -50,79 +49,45 @@ def crossingsv2():
     table = models.Crossings
     bbox = request.args.get('bbox')
     all_rows = request.args.get('all')
-    geojson_query = gfunc.ST_AsGeoJSON(table.geom, 7)
-    geojson_geom = geojson_query.label('geom')
+    geojson_query = gfunc.ST_AsGeoJSON(table.geog, 8)
+    geojson_geog = geojson_query.label('geog')
     if all_rows == 'true':
         select = db.session.query(table.id,
-                                  geojson_geom,
-                                  table.grade,
+                                  geojson_geog,
+                                  table.incline,
                                   table.curbramps)
         result = select.all()
     else:
         if not bbox:
             select = db.session.query(table.id,
-                                      geojson_geom,
-                                      table.grade,
+                                      geojson_geog,
+                                      table.incline,
                                       table.curbramps)
             result = select.limit(10).all()
         else:
             bounds = [float(b) for b in bbox.split(',')]
-            in_bbox = sql_utils.in_bbox(table.geom, bounds)
+            in_bbox = sql_utils.in_bbox(table.geog, bounds)
             select = db.session.query(table.id,
-                                      geojson_geom,
-                                      table.grade,
+                                      geojson_geog,
+                                      table.incline,
                                       table.curbramps)
             result = select.filter(in_bbox).all()
 
     fc = geojson.FeatureCollection([])
     for row in result:
         feature = geojson.Feature()
-        geometry = json.loads(row.geom)
+        geometry = json.loads(row.geog)
         for i, lonlat in enumerate(geometry['coordinates']):
             lon = round(lonlat[0], 7)
             lat = round(lonlat[1], 7)
             geometry['coordinates'][i] = [lon, lat]
         feature['geometry'] = geometry
         feature['properties'] = {'id': row.id,
-                                 'grade': str(round(row.grade, 3)),
+                                 'incline': str(round(row.incline, 3)),
                                  'curbramps': row.curbramps}
         fc['features'].append(feature)
 
     return jsonify(fc)
-
-
-@app.route('/v2/curbramps.geojson')
-def curbrampsv2():
-    table = models.Curbramps
-    bbox = request.args.get('bbox')
-    all_rows = request.args.get('all')
-    geojson_query = gfunc.ST_AsGeoJSON(table.geom, 7)
-    geojson_geom = geojson_query.label('geom')
-    if all_rows == 'true':
-        select = db.session.query(table.id,
-                                  geojson_geom)
-        result = select.all()
-    else:
-        if not bbox:
-            select = db.session.query(table.id,
-                                      geojson_geom)
-            result = select.limit(10).all()
-        else:
-            bounds = [float(b) for b in bbox.split(',')]
-            in_bbox = sql_utils.in_bbox(table.geom, bounds)
-            select = db.session.query(table.id,
-                                      geojson_geom)
-            result = select.filter(in_bbox).all()
-
-    feature_collection = geojson.FeatureCollection([])
-    for row in result:
-        feature = geojson.Feature()
-        geometry = json.loads(row.geom)
-        feature['geometry'] = geometry
-        feature['properties'] = {'id': row.id}
-        feature_collection['features'].append(feature)
-
-    return jsonify(feature_collection)
 
 
 @app.route('/v2/route.json', methods=['GET'])
@@ -134,10 +99,10 @@ def routev2():
     destination = request.args.get('destination', None)
     if (origin is None) or (destination is None):
         # TODO: return status code 400
-        return {
+        return jsonify({
             'status': 'BadInput',
             'errmessage': 'origin and destination parameters are required.'
-        }
+        })
 
     # request route
     params = ['avoid', 'maxdown', 'ideal', 'maxup']

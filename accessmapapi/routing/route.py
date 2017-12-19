@@ -50,6 +50,10 @@ def routing_request(origin, destination, cost=costs.manual_wheelchair,
 
     table_uuid = str(uuid.uuid4()).replace('-', '')
 
+    # TODO: attempt to simplify this by just creating a query that unions
+    # the routing table (and its _vertices node table) with the partial
+    # edges + new node. That is, treat it as a subquery rather than view or
+    # temporary table.
     nearest_sql = text('''
     CREATE TEMPORARY TABLE partial{uuid} AS
     SELECT ST_LineSubstring(geom, 0.0, frac) part1,
@@ -58,7 +62,7 @@ def routing_request(origin, destination, cost=costs.manual_wheelchair,
            source,
            target,
            iscrossing::boolean,
-           grade,
+           incline,
            curbramps,
            -11 idx
       FROM (  SELECT *,
@@ -89,7 +93,7 @@ def routing_request(origin, destination, cost=costs.manual_wheelchair,
            source,
            target,
            iscrossing::boolean,
-           grade,
+           incline,
            curbramps,
            -12 idx
       FROM (  SELECT *,
@@ -135,7 +139,7 @@ def routing_request(origin, destination, cost=costs.manual_wheelchair,
     SELECT -1 * (2 * row_number() OVER ()) + 1 - 10 AS id,
            NULL o_id,
            part1 geom,
-           grade,
+           incline,
            iscrossing,
            ST_Length(part1::geography) AS length,
            curbramps,
@@ -147,7 +151,7 @@ def routing_request(origin, destination, cost=costs.manual_wheelchair,
     SELECT -1 * (2 * row_number() OVER ()) - 10 AS id,
            NULL o_id,
            part2 geom,
-           grade,
+           incline,
            iscrossing,
            ST_Length(part2::geography) AS length,
            curbramps,
@@ -156,11 +160,6 @@ def routing_request(origin, destination, cost=costs.manual_wheelchair,
            FALSE construction
       FROM partial{uuid}
     '''.format(uuid=table_uuid))
-
-    # Note: 'grade' value is kept because we don't have high enough resolution
-    # (in most cases) to reliably do short distances. 'curbramps' value is
-    # kept because it still implies the presence or basence of a curb ramp at
-    # each end.
 
     # Fill in construction
     # FIXME: units are in degrees - about 10 cm in this case. No good!
@@ -175,7 +174,7 @@ def routing_request(origin, destination, cost=costs.manual_wheelchair,
     CREATE TEMPORARY TABLE edges{uuid} AS
     SELECT id,
            geom,
-           grade,
+           incline,
            length,
            iscrossing,
            curbramps,
@@ -186,7 +185,7 @@ def routing_request(origin, destination, cost=costs.manual_wheelchair,
     UNION
     SELECT id,
            geom,
-           grade,
+           incline,
            length,
            iscrossing,
            curbramps,
@@ -218,7 +217,7 @@ def routing_request(origin, destination, cost=costs.manual_wheelchair,
             END
              AS geom,
                 (p.pgr).cost,
-                t.grade,
+                t.incline,
                 t.construction,
                 (p.pgr).seq,
                 (p.pgr).id2
@@ -279,7 +278,7 @@ def routing_request(origin, destination, cost=costs.manual_wheelchair,
             'geometry': geometry,
             'properties': {
                 'cost': row[1],
-                'grade': float(row[2]),
+                'incline': float(row[2]),
                 'construction': bool(row[3])
             }
         }
