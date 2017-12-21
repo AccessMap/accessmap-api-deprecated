@@ -148,7 +148,7 @@ def cost_fun_generator(kdist=1e6, kincline=1e10, kcrossing=1e2, kcurb=1e14,
         # MultiDigraph may have multiple edges. Right now, we ignore this
         # and just pick the first edge. A simple DiGraph may be more
         # appropriate?
-        attributes = d[0]
+        attributes = d
         path_type = attributes['path_type']
         cost = 0
 
