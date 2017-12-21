@@ -6,7 +6,7 @@ import rtree
 from shapely.geometry import Point
 
 
-def make_network(sidewalks, crossings):
+def make_network(sidewalks, crossings, sindex_path):
     '''Create a network given sidewalk and crossing data. Expectation is that
     the data is already 'noded', i.e. that all lines that should be connected
     roughly end-to-end.
@@ -21,7 +21,7 @@ def make_network(sidewalks, crossings):
     PRECISION = 7
 
     # We'll also create a spatial index so we can look up nodes/edges quickly!
-    sindex = rtree.index.Index()
+    sindex = rtree.index.Index(sindex_path)
 
     def graph_from_gdf(gdf, path_type):
         gdf['length'] = gdf.geometry.apply(lambda x: haversine(x.coords))
@@ -77,9 +77,9 @@ def make_network(sidewalks, crossings):
     G_cr = graph_from_gdf(crossings, 'crossing')
 
     G = nx.compose(G_sw, G_cr)
-    G.sindex = sindex
+    G
 
-    return G
+    return G, sindex
 
 
 def haversine(coords):

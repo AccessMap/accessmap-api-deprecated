@@ -1,5 +1,6 @@
 '''The flask application package.'''
 from flask import Flask
+from flask_caching import Cache
 import os
 
 
@@ -16,6 +17,9 @@ app.config['PEDDATADIR'] = datadir
 
 # To get debugging messages:
 app.config['PROPAGATE_EXCEPTIONS'] = True
+
+# Set up cache for pedestrian data / graphs
+cache = Cache(app, config={'CACHE_TYPE': 'simple'})
 
 
 # CORS responses

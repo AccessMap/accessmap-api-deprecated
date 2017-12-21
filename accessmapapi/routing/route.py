@@ -34,7 +34,7 @@ def dijkstra(origin, destination, cost_fun_gen=costs.cost_fun_generator,
     # 4. Pick the lowest-cost route, return its data according to the spec
     #    used by Mapbox.
 
-    G = network_handlers.get_network()
+    G, sindex = network_handlers.get_G()
     if G is None:
         raise ValueError('Routing network could not be initialized')
 
@@ -48,7 +48,7 @@ def dijkstra(origin, destination, cost_fun_gen=costs.cost_fun_generator,
 
     # Find closest edge or node to points
     def initialization_points(point):
-        query = G.sindex.nearest(point.bounds, 1, objects=True)
+        query = sindex.nearest(point.bounds, 1, objects=True)
         closest = [q.object for q in query][0]
         if closest['type'] == 'node':
             nodes = [closest['lookup']]
