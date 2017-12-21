@@ -1,3 +1,4 @@
+from flask import current_app
 import geopandas as gpd
 import os
 import pickle

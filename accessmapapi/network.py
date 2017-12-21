@@ -35,7 +35,7 @@ def make_network(sidewalks, crossings, sindex_path):
         else:
             raise ValueError('Only the `sidewalk` and `crossing` path ' +
                              'types are allowed')
-        G = nx.MultiDiGraph()
+        G = nx.Graph()
         for idx, row in gdf.iterrows():
             geometry = row['geometry']
             row_attrs = dict(row[row.index & attrs])
@@ -63,12 +63,18 @@ def make_network(sidewalks, crossings, sindex_path):
             sindex.insert(0, Point(end).bounds, obj_e)
 
             # Add edge
+            # retain original order in which geometry was added - necessary to
+            # do costing based on directional attributes.
+            row_attrs['from'] = start_node
+            row_attrs['to'] = end_node
+
             G.add_edge(start_node, end_node, path_type=path_type,
                        **row_attrs)
             obj_v = {
                 'type': 'edge',
                 'lookup': [start_node, end_node]
             }
+
             sindex.insert(0, geometry.bounds, obj_v)
 
         return G

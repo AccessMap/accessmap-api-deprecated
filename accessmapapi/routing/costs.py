@@ -148,16 +148,21 @@ def cost_fun_generator(kdist=1e6, kincline=1e10, kcrossing=1e2, kcurb=1e14,
         # MultiDigraph may have multiple edges. Right now, we ignore this
         # and just pick the first edge. A simple DiGraph may be more
         # appropriate?
-        attributes = d
-        path_type = attributes['path_type']
+        path_type = d['path_type']
+
         cost = 0
 
         # Distance cost
-        cost += kdist * attributes['length']
+        cost += kdist * d['length']
 
         # Incline cost
         if path_type == 'sidewalk':
-            cost += kincline * piecewise(attributes['incline'])
+            if d['from'] == u:
+                # Going in same direction as the geometry
+                cost += kincline * piecewise(d['incline'])
+            else:
+                # Going in the opposite direction - flip the incline
+                cost += kincline * piecewise(-1.0 * d['incline'])
 
         # Crossing cost
         if path_type == 'crossing':
@@ -166,7 +171,7 @@ def cost_fun_generator(kdist=1e6, kincline=1e10, kcrossing=1e2, kcurb=1e14,
         # Curb cost
         if path_type == 'crossing':
             if avoid_curbs:
-                curbramps = getattr(attributes, 'curbramps', 0)
+                curbramps = getattr(d, 'curbramps', 0)
                 if curbramps == 0:
                     cost += kcurb
 

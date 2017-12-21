@@ -43,8 +43,8 @@ def dijkstra(origin, destination, cost_fun_gen=costs.cost_fun_generator,
     # The graph is a MultiDiGraph, so there may be multiple pieces of data
     # sent to the cost function. We're ignoring this for now, and just
     # choosing the first edge data.
-    def wrapped_cost_fun(u, v, d):
-        return cost_fun(u, v, d[0])
+    # def wrapped_cost_fun(u, v, d):
+    #     return cost_fun(u, v, d)
 
     # Find closest edge or node to points
     def initialization_points(point):
@@ -80,7 +80,10 @@ def dijkstra(origin, destination, cost_fun_gen=costs.cost_fun_generator,
                 # can be encoded (such as infinite costs). NetworkX
                 # implementation is under networkx>algorithms>shortest_paths>
                 # weighted: _dijkstra_multisource
-                path = nx.dijkstra_path(G, o, d, weight=wrapped_cost_fun)
+                # TODO: reimplementing dijkstra is probably a good idea
+                # anyways, to make following the 'reverse' path possible
+                # without doubling + complicating the graph.
+                path = nx.dijkstra_path(G, o, d, weight=cost_fun)
             except nx.NetworkXNoPath:
                 continue
 
@@ -88,7 +91,7 @@ def dijkstra(origin, destination, cost_fun_gen=costs.cost_fun_generator,
             for node_id1, node_id2 in zip(path[:-1], path[1:]):
                 node1 = G.nodes[node_id1]
                 node2 = G.nodes[node_id2]
-                edge = G[node_id1][node_id2][0]
+                edge = G[node_id1][node_id2]
 
                 cost = cost_fun(node1, node2, edge)
 
