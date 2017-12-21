@@ -131,10 +131,8 @@ def dijkstra(origin, destination, cost_fun_gen=costs.cost_fun_generator,
             'routes': []
         }
 
-    return best_path
-
     coords = []
-    segments = geojson.FeatureCollection()
+    segments = geojson.FeatureCollection([])
     for feature in best_path['features']:
         segments['features'].append(feature)
         coords += feature['geometry']['coordinates']
