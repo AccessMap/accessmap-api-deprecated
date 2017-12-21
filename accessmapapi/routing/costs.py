@@ -103,7 +103,7 @@ def piecewise_generator(val_min=-0.09, val_ideal=-0.01, val_max=0.0833):
     return piecewise
 
 
-def cost_fun_generator(kdist=1e6, kincline=1e10, kcrossing=1e2, kcurb=1e14,
+def cost_fun_generator(kdist=1.0, kincline=1.0, kcrossing=1.0, kcurb=1e10,
                        incline_min=-0.09, incline_ideal=-0.01,
                        incline_max=0.0833, avoid_curbs=True):
     '''Calculates a cost-to-travel that balances distance vs. steepness vs.
@@ -171,7 +171,7 @@ def cost_fun_generator(kdist=1e6, kincline=1e10, kcrossing=1e2, kcurb=1e14,
         # Curb cost
         if path_type == 'crossing':
             if avoid_curbs:
-                curbramps = getattr(d, 'curbramps', 0)
+                curbramps = d['curbramps']
                 if curbramps == 0:
                     cost += kcurb
 

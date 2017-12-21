@@ -83,7 +83,7 @@ def dijkstra(origin, destination, cost_fun_gen=costs.cost_fun_generator,
                 # TODO: reimplementing dijkstra is probably a good idea
                 # anyways, to make following the 'reverse' path possible
                 # without doubling + complicating the graph.
-                total_cost, path = nx.bidirectional_dijkstra(G, o, d,
+                total_cost, path = nx.single_source_dijkstra(G, o, d,
                                                              weight=cost_fun)
             except nx.NetworkXNoPath:
                 continue
@@ -142,11 +142,12 @@ def dijkstra(origin, destination, cost_fun_gen=costs.cost_fun_generator,
             'routes': []
         }
 
-    coords = []
+    # Start at first point
+    coords = [best_path['features'][0]['geometry']['coordinates'][0]]
     segments = geojson.FeatureCollection([])
     for feature in best_path['features']:
         segments['features'].append(feature)
-        coords += feature['geometry']['coordinates']
+        coords += feature['geometry']['coordinates'][1:]
 
     # Produce the response
     # TODO: return JSON directions similar to Mapbox or OSRM so e.g.
