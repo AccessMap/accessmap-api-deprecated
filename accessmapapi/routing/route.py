@@ -83,19 +83,20 @@ def dijkstra(origin, destination, cost_fun_gen=costs.cost_fun_generator,
                 # TODO: reimplementing dijkstra is probably a good idea
                 # anyways, to make following the 'reverse' path possible
                 # without doubling + complicating the graph.
-                path = nx.dijkstra_path(G, o, d, weight=cost_fun)
+                cost, path = nx.bidirectional_dijkstra(G, o, d,
+                                                       weight=cost_fun)
             except nx.NetworkXNoPath:
                 continue
 
-            total_cost = 0
+            # total_cost = 0
             for node_id1, node_id2 in zip(path[:-1], path[1:]):
-                node1 = G.nodes[node_id1]
-                node2 = G.nodes[node_id2]
+                # node1 = G.nodes[node_id1]
+                # node2 = G.nodes[node_id2]
                 edge = G[node_id1][node_id2]
 
-                cost = cost_fun(node1, node2, edge)
+                #  cost = cost_fun(node1, node2, edge)
 
-                total_cost += cost
+                #  total_cost += cost
 
                 feature = geojson.Feature()
                 feature['geometry'] = mapping(edge['geometry'])
@@ -114,12 +115,24 @@ def dijkstra(origin, destination, cost_fun_gen=costs.cost_fun_generator,
                         'curbramps': edge['curbramps']
                     }
 
+                if edge['from'] != node_id1:
+                    # Traversed edge in opposite direction as geometry
+
+                    # Reverse coordinates
+                    new_coords = list(reversed(edge['geometry'].coords))
+                    feature['geometry']['coordinates'] = new_coords
+
+                    # Reverse incline, if applicable
+                    if 'incline' in feature['properties']:
+                        new_incline = -1.0 * feature['properties']['incline']
+                        feature['properties']['incline'] = new_incline
+
                 path_data['features'].append(feature)
 
-            total_cost += cost_o
-            total_cost += cost_d
+            cost += cost_o
+            cost += cost_d
 
-            path_data['total_cost'] = total_cost
+            path_data['total_cost'] = cost
             paths_data.append(path_data)
 
     if paths_data:
