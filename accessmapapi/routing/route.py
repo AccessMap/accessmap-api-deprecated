@@ -1,12 +1,12 @@
-from accessmapapi import db
-from sqlalchemy.sql import text
+import geojson
+import networkx as nx
+from shapely.geometry import mapping
+from accessmapapi import network_handlers
 from . import costs
-import json
-import uuid
 
 
-def routing_request(origin, destination, cost=costs.manual_wheelchair,
-                    cost_kwargs=None):
+def dijkstra(origin, destination, cost_fun_gen=costs.cost_fun_generator,
+             cost_kwargs=None):
     '''Process a routing request, returning a Mapbox-compatible routing JSON
     object.
 
@@ -14,277 +14,110 @@ def routing_request(origin, destination, cost=costs.manual_wheelchair,
     :type origin: list of coordinates
     :param destination: lat-lon of ending location.
     :type destination: list of coordinates
-    :param cost: SQL-rendering cost function to use
-    :type cost: callable
+    :param cost_fun_gen: Function that generates a cost function given the
+           info from `cost_kwargs`.
+    :type cost_fun_gen: callable
     :param cost_kwargs: keyword arguments to pass to the cost function.
     :type cost_kwargs: dict
 
     '''
     #
     # Strategy:
-    # 1) Find nearest edge/node in table.
-    # 2) If node, remember and use directly in routing later
-    # 3) If edge, create new node at nearest point along with two new edges,
-    #    one for each side of that point (e.g. middle of the block is closest?
-    #    need to create path that goes one direct, one that goes the other).
-    # 4) Put the edges in a new temporary table and re-derive its columns that
-    #    get used in routing. Namely, barriers will need to be re-evaluated
-    #    spatially - construction may only effect one of the new edges, e.g.
-    # 5) Create temporary routing table view as union between original one and
-    #    new temporary one that includes the two new vertices
-    # 6) Create temporary routing vertex table view as union between original
-    #    one and new temporary one (manually-created vertex table).
-    # 7) Do routing on the views. The session closes after the routing query,
-    #    and the temporary views + tables disappear.
-
     #
-    # Find the nearest edge/node in the table
-    #
+    # 1. Find the closest point in the network for origin and destination.
+    # 2. If the closest point is on an edge (as opposed to endpoint/node), will
+    #    actually find two routes, starting on the edge, and append the cost
+    #    of that partial traversal to the total + create extra geometries. This
+    #    means that way may find 4 routes. Wasteful, but without a way to add
+    #    temporary edges / implement dijkstra ourselves, it's the only option.
+    # 3. Route from every start to every end.
+    # 4. Pick the lowest-cost route, return its data according to the spec
+    #    used by Mapbox.
 
-    # Note: the units of the 'routing' table are WGS84, so the distance
-    # calculation is not going to be correct (will involve lat degrees).
+    G = network_handlers.get_network()
+    if G is None:
+        raise ValueError('Routing network could not be initialized')
 
-    # UUID to be used for temporary tables - hopefully prevents locking tables,
-    # enables concurrent requests to db in same session (not sure how to ensure
-    # isolated DB sessions per user, or if that is even desirable)
+    cost_fun = costs.cost_fun_generator(**cost_kwargs)
 
-    table_uuid = str(uuid.uuid4()).replace('-', '')
+    # Find closest edge or node to points
+    def initialization_points(point):
+        query = G.sindex.nearest(point.bounds, 1, objects=True)
+        closest = [q.object for q in query][0]
+        if closest['type'] == 'node':
+            nodes = [closest['lookup']]
+            node_costs = [0]
+        else:
+            # It's an edge! TODO: do things (for now just grab first point)
+            nodes = [closest['lookup'][0]]
+            node_costs = [0]
 
-    # TODO: attempt to simplify this by just creating a query that unions
-    # the routing table (and its _vertices node table) with the partial
-    # edges + new node. That is, treat it as a subquery rather than view or
-    # temporary table.
-    nearest_sql = text('''
-    CREATE TEMPORARY TABLE partial{uuid} AS
-    SELECT ST_LineSubstring(geom, 0.0, frac) part1,
-           ST_LineSubstring(geom, frac, 1.0) part2,
-           ST_LineInterpolatePoint(geom, frac) point,
-           source,
-           target,
-           iscrossing::boolean,
-           incline,
-           curbramps,
-           -11 idx
-      FROM (  SELECT *,
-                     _ST_BestSRID(geom, waypoint) bestsrid,
-                     ST_LineLocatePoint(
-                       ST_Transform(geom, _ST_BestSRID(geom, waypoint)),
-                       ST_Transform(waypoint, _ST_BestSRID(geom, waypoint))
-                     ) frac
-                FROM (  SELECT *,
-                               ST_SetSRID(ST_MakePoint(
-                                        :lon1, :lat1),
-                                        4326
-                               ) AS waypoint
-                          FROM routing_noded
-                      ORDER BY geom <-> ST_SetSRID(
-                                 ST_MakePoint(:lon1, :lat1),
-                                 4326)
-                         LIMIT 10) r
-            ORDER BY ST_Distance(
-                       r.geom::geography,
-                       waypoint::geography
-                     )
-               LIMIT 1) a
-    UNION
-    SELECT ST_LineSubstring(geom, 0.0, frac) part1,
-           ST_LineSubstring(geom, frac, 1.0) part2,
-           ST_LineInterpolatePoint(geom, frac) point,
-           source,
-           target,
-           iscrossing::boolean,
-           incline,
-           curbramps,
-           -12 idx
-      FROM (  SELECT *,
-                     _ST_BestSRID(geom, waypoint) bestsrid,
-                     ST_LineLocatePoint(
-                       ST_Transform(geom, _ST_BestSRID(geom, waypoint)),
-                       ST_Transform(waypoint, _ST_BestSRID(geom, waypoint))
-                     ) frac
-                FROM (  SELECT *,
-                               ST_SetSRID(ST_MakePoint(
-                                        :lon2, :lat2),
-                                        4326
-                               ) AS waypoint
-                          FROM routing_noded
-                      ORDER BY geom <-> ST_SetSRID(
-                                 ST_MakePoint(:lon2, :lat2),
-                                 4326)
-                         LIMIT 10) r
-            ORDER BY ST_Distance(
-                       r.geom::geography,
-                       waypoint::geography
-                     )
-               LIMIT 1) b
-    '''.format(uuid=table_uuid))
+        return nodes, node_costs
 
-    # Note: offset of -10 is to guarantee all temporary IDs are far away from
-    # -1, which is used as a placeholder in the pgr_dijkstra result. Just in
-    # case other negative numbers are used...
-    temporary_nodes = text('''
-    CREATE TEMPORARY TABLE edges{uuid}_vertices_pgr AS
-    SELECT * FROM routing_noded_vertices_pgr
-     UNION (SELECT idx id,
-                   NULL cnt,
-                   NULL chk,
-                   NULL ein,
-                   NULL eout,
-                   point the_geom
-              FROM partial{uuid})
-    '''.format(uuid=table_uuid))
+    origins, origin_costs = initialization_points(origin)
+    destinations, destination_costs = initialization_points(destination)
 
-    new_edges = text('''
-    CREATE TEMPORARY TABLE new_edges{uuid} AS
-    SELECT -1 * (2 * row_number() OVER ()) + 1 - 10 AS id,
-           NULL o_id,
-           part1 geom,
-           incline,
-           iscrossing,
-           ST_Length(part1::geography) AS length,
-           curbramps,
-           source,
-           idx target,
-           FALSE construction
-      FROM partial{uuid}
-     UNION
-    SELECT -1 * (2 * row_number() OVER ()) - 10 AS id,
-           NULL o_id,
-           part2 geom,
-           incline,
-           iscrossing,
-           ST_Length(part2::geography) AS length,
-           curbramps,
-           idx source,
-           target,
-           FALSE construction
-      FROM partial{uuid}
-    '''.format(uuid=table_uuid))
+    paths_data = []
+    for o, cost_o in zip(origins, origin_costs):
+        for d, cost_d in zip(destinations, destination_costs):
+            if o == d:
+                # Start and end points are the same - no route!
+                continue
 
-    # Fill in construction
-    # FIXME: units are in degrees - about 10 cm in this case. No good!
-    construction_sql = ('''
-    UPDATE new_edges{uuid} ne
-       SET construction = TRUE
-      FROM construction c
-     WHERE ST_DWithin(ne.geom::geography, c.geom::geography, 0.1)
-    '''.format(uuid=table_uuid))
+            path_data = geojson.FeatureCollection()
 
-    temporary_edges = text('''
-    CREATE TEMPORARY TABLE edges{uuid} AS
-    SELECT id,
-           geom,
-           incline,
-           length,
-           iscrossing,
-           curbramps,
-           construction,
-           source,
-           target
-      FROM routing_noded
-    UNION
-    SELECT id,
-           geom,
-           incline,
-           length,
-           iscrossing,
-           curbramps,
-           construction,
-           source,
-           target
-      FROM new_edges{uuid};
-    CREATE UNIQUE INDEX edges{uuid}_pkey ON edges{uuid} (id);
-    '''.format(uuid=table_uuid))
-
-    ###########################################
-    # With start/end nodes, get optimal route #
-    ###########################################
-    # node_start = 15307
-    # node_end = 15308
-
-    # Parameterize the cost function and get SQL back
-    if cost_kwargs is None:
-        cost_kwargs = {}
-    cost_fun = cost(**cost_kwargs)
-
-    # Note: Node IDs 11 and 12 are hard-coded, will need to be replaced if
-    # more than 2 waypoints are ever needed
-    output_sql = '''
-    SELECT CASE t.source
-           WHEN (p.pgr).id1
-           THEN ST_AsGeoJSON(t.geom, 7)
-           ELSE ST_AsGeoJSON(ST_Reverse(t.geom), 7)
-            END
-             AS geom,
-                (p.pgr).cost,
-                t.incline,
-                t.construction,
-                (p.pgr).seq,
-                (p.pgr).id2
-      FROM edges{uuid} t
-      JOIN (SELECT pgr_dijkstra('SELECT id::integer,
-                                        source::integer,
-                                        target::integer,
-                                        {cost}::double precision AS cost
-                                   FROM edges{uuid}',
-                                -11,
-                                -12,
-                                false,
-                                false) AS pgr
-            ) p
-        ON id = (p.pgr).id2
-    ORDER BY (p.pgr).seq
-    '''.format(cost=cost_fun, uuid=table_uuid)
-
-    with db.engine.connect() as conn:
-        with conn.begin() as trans:
             try:
-                conn.execute(nearest_sql, lon1=origin[1], lat1=origin[0],
-                             lon2=destination[1], lat2=destination[0])
-                conn.execute(temporary_nodes)
-                conn.execute(new_edges)
-                conn.execute(construction_sql)
-                conn.execute(temporary_edges)
-                result = conn.execute(output_sql)
-                trans.commit()
-            except:
-                trans.rollback()
-                raise
-            finally:
-                # FIXME: this shouldn't happen if each connection launched a
-                # new session (i.e. temporary table should be non-shared).
-                # But if this line is removed, subsequent queries find the
-                # 'partial' table. Why?
-                template = 'DROP TABLE IF EXISTS {} CASCADE'
-                for name in ['partial{}', 'new_edges{}', 'edges{}',
-                             'edges{}_vertices_pgr']:
-                    conn.execute(template.format(name.format(table_uuid)))
+                # TODO: Use single_source_dijkstra so the graph doesn't have
+                # to be traversed again to find the total cost
+                # TODO: consider just reimplementing custom dijkstra so that
+                # temporary edges/costing can be used and more custom behavior
+                # can be encoded (such as infinite costs). NetworkX
+                # implementation is under networkx>algorithms>shortest_paths>
+                # weighted: _dijkstra_multisource
+                path = nx.dijkstra_path(G, o, d, weight=cost_fun)
+            except nx.NetworkXNoPath:
+                continue
 
-    route_rows = list(result)
-    if not route_rows:
-        return {'code': 'NoRoute',
-                'waypoints': [],
-                'routes': []}
+            total_cost = 0
+            for node_id1, node_id2 in zip(path[:-1], path[1:]):
+                node1 = G.nodes[node_id1]
+                node2 = G.nodes[node_id2]
+                edge = G[node_id1][node_id2]
 
-    segments = {
-        'type': 'FeatureCollection',
-        'features': []
-    }
-    coords = []
-    for row in route_rows:
-        geometry = json.loads(row[0])
-        segment = {
-            'type': 'Feature',
-            'geometry': geometry,
-            'properties': {
-                'cost': row[1],
-                'incline': float(row[2]),
-                'construction': bool(row[3])
-            }
+                cost = cost_fun(node1, node2, edge)
+
+                total_cost += cost
+
+                feature = geojson.Feature()
+                feature['geometry'] = mapping(edge[0]['geometry'])
+                feature['properties'] = {
+                    'cost': cost
+                }
+
+                path_data['features'].append(feature)
+
+            total_cost += cost_o
+            total_cost += cost_d
+
+            path_data['total_cost'] = total_cost
+            paths_data.append(path_data)
+
+    if paths_data:
+        best_path = sorted(paths_data, key=lambda x: x['total_cost'])[0]
+    else:
+        return {
+            'code': 'NoRoute',
+            'waypoints': [],
+            'routes': []
         }
-        segments['features'].append(segment)
 
-        coords += geometry['coordinates']
+    return best_path
+
+    coords = []
+    segments = geojson.FeatureCollection()
+    for feature in best_path['features']:
+        segments['features'].append(feature)
+        coords += feature['geometry']['coordinates']
 
     # Produce the response
     # TODO: return JSON directions similar to Mapbox or OSRM so e.g.
@@ -320,38 +153,37 @@ def routing_request(origin, destination, cost=costs.manual_wheelchair,
             heading: what is this for? Drawing an arrow maybe?
     '''
     origin_feature = {'type': 'Feature',
-                      'geometry': {'type': 'Point',
-                                   'coordinates': [
-                                     float(origin[1]),
-                                     float(origin[0]),
-                                    ]},
+                      'geometry': {
+                        'type': 'Point',
+                        'coordinates': list(origin.coords)
+                      },
                       'properties': {}}
 
     dest_feature = {'type': 'Feature',
-                    'geometry': {'type': 'Point',
-                                 'coordinates': [
-                                    float(destination[1]),
-                                    float(destination[0])
-                                  ]},
+                    'geometry': {
+                        'type': 'Point',
+                        'coordinates': list(destination.coords)
+                    },
                     'properties': {}}
     waypoints_feature_list = []
     for waypoint in [origin, destination]:
-        waypoint_feature = {'type': 'Feature',
-                            'geometry': {
-                              'type': 'Point',
-                              'coordinates': [
-                                float(waypoint[0]),
-                                float(waypoint[1])
-                              ]
-                            },
-                            'properties': {}}
+        waypoint_feature = {
+            'type': 'Feature',
+            'geometry': {
+              'type': 'Point',
+              'coordinates': list(waypoint.coords)
+            },
+            'properties': {}
+        }
         waypoints_feature_list.append(waypoint_feature)
 
     # TODO: here's where to add alternative routes once we have them
     routes = []
     route = {}
-    route['geometry'] = {'type': 'LineString',
-                         'coordinates': coords}
+    route['geometry'] = {
+        'type': 'LineString',
+        'coordinates': coords
+    }
 
     # Add annotated segment GeoJSON FeatureCollection
     route['segments'] = segments

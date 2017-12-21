@@ -1,91 +1,50 @@
-from accessmapapi import app, db, models, sql_utils
+from accessmapapi import app
 from accessmapapi.routing import costs, route, travelcost
-from flask import jsonify, request
-import geoalchemy2.functions as gfunc
+from flask import g, jsonify, request
 import geojson
-import json
+from shapely.geometry import mapping, Point
 
 
 @app.route('/v2/sidewalks.geojson')
 def sidewalksv2():
-    table = models.Sidewalks
+    # TODO: return proper codes and messages when bad inputs are given
     bbox = request.args.get('bbox')
     all_rows = request.args.get('all')
-    geojson_query = gfunc.ST_AsGeoJSON(table.geog, 8)
-    geojson_geog = geojson_query.label('geog')
+
+    gdf = g['sidewalks']
+
     if all_rows == 'true':
-        select = db.session.query(table.id,
-                                  geojson_geog,
-                                  table.incline)
-        result = select.all()
+        fc = gdf_to_fc(gdf)
     else:
         if not bbox:
-            select = db.session.query(table.id,
-                                      geojson_geog,
-                                      table.incline)
-            result = select.limit(10).all()
+            fc = gdf_to_fc(gdf.iloc[:10])
         else:
             bounds = [float(b) for b in bbox.split(',')]
-            in_bbox = sql_utils.in_bbox(table.geog, bounds)
-            select = db.session.query(table.id,
-                                      geojson_geog,
-                                      table.incline)
-            result = select.filter(in_bbox).all()
+            query = gdf.sindex.intersects(bounds, objects=True)
+            in_bounds = gdf.loc[[q.index for q in query]]
+            fc = gdf_to_fc(in_bounds)
 
-    feature_collection = geojson.FeatureCollection([])
-    for row in result:
-        feature = geojson.Feature()
-        geometry = json.loads(row.geog)
-        feature['geometry'] = geometry
-        feature['properties'] = {'id': row.id,
-                                 'incline': str(round(row.incline, 3))}
-        feature_collection['features'].append(feature)
-
-    return jsonify(feature_collection)
+    return jsonify(fc)
 
 
 @app.route('/v2/crossings.geojson')
 def crossingsv2():
-    table = models.Crossings
+    # TODO: return proper codes and messages when bad inputs are given
     bbox = request.args.get('bbox')
     all_rows = request.args.get('all')
-    geojson_query = gfunc.ST_AsGeoJSON(table.geog, 8)
-    geojson_geog = geojson_query.label('geog')
+
+    gdf = g['crossings']
+
     if all_rows == 'true':
-        select = db.session.query(table.id,
-                                  geojson_geog,
-                                  table.incline,
-                                  table.curbramps)
-        result = select.all()
+        fc = gdf_to_fc(gdf)
     else:
         if not bbox:
-            select = db.session.query(table.id,
-                                      geojson_geog,
-                                      table.incline,
-                                      table.curbramps)
-            result = select.limit(10).all()
+            fc = gdf_to_fc(gdf.iloc[:10])
         else:
             bounds = [float(b) for b in bbox.split(',')]
-            in_bbox = sql_utils.in_bbox(table.geog, bounds)
-            select = db.session.query(table.id,
-                                      geojson_geog,
-                                      table.incline,
-                                      table.curbramps)
-            result = select.filter(in_bbox).all()
-
-    fc = geojson.FeatureCollection([])
-    for row in result:
-        feature = geojson.Feature()
-        geometry = json.loads(row.geog)
-        for i, lonlat in enumerate(geometry['coordinates']):
-            lon = round(lonlat[0], 7)
-            lat = round(lonlat[1], 7)
-            geometry['coordinates'][i] = [lon, lat]
-        feature['geometry'] = geometry
-        feature['properties'] = {'id': row.id,
-                                 'incline': str(round(row.incline, 3)),
-                                 'curbramps': row.curbramps}
-        fc['features'].append(feature)
+            query = gdf.sindex.intersects(bounds, objects=True)
+            in_bounds = gdf.loc[[q.index for q in query]]
+            fc = gdf_to_fc(in_bounds)
 
     return jsonify(fc)
 
@@ -105,10 +64,9 @@ def routev2():
         })
 
     # request route
-    params = ['avoid', 'maxdown', 'ideal', 'maxup']
+    params = ['avoid', 'incline_min', 'incline_ideal', 'incline_max']
     cost_params = {
-        'avoid_curbs': False,
-        'avoid_construction': False
+        'avoid_curbs': False
     }
     for param in params:
         value = request.args.get(param, None)
@@ -118,17 +76,18 @@ def routev2():
                 barriers = value.split('|')
                 if 'curbs' in barriers:
                     cost_params['avoid_curbs'] = True
-                if 'construction' in barriers:
-                    cost_params['avoid_construction'] = True
             else:
                 cost_params[param] = value
 
-    origin_coords = origin.split(',')
-    dest_coords = destination.split(',')
+    origin_coords = [float(c) for c in origin.split(',')]
+    destination_coords = [float(c) for c in destination.split(',')]
 
-    route_response = route.routing_request(origin_coords, dest_coords,
-                                           cost=costs.manual_wheelchair,
-                                           cost_kwargs=cost_params)
+    origin = Point(reversed(origin_coords))
+    destination = Point(reversed(destination_coords))
+
+    route_response = route.dijkstra(origin, destination,
+                                    cost_fun_gen=costs.cost_fun_generator,
+                                    cost_kwargs=cost_params)
 
     return jsonify(route_response)
 
@@ -148,3 +107,19 @@ def travelcostv2():
     cost_points = travelcost.travel_cost(lat, lon, costfun, maxcost=10000)
 
     return jsonify(cost_points)
+
+
+def gdf_to_fc(gdf):
+    fc = geojson.FeatureCollection([])
+
+    def row_to_feature(row):
+        row = row.dropna()
+        geometry = row.pop('geometry')
+        feature = geojson.Feature()
+        feature['geometry'] = mapping(geometry)
+        feature['properties'] = dict(row)
+        return feature
+
+    fc['features'] = list(gdf.apply(row_to_feature, axis=1))
+
+    return fc
