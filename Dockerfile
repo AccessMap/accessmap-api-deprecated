@@ -3,10 +3,12 @@ MAINTAINER Nick Bolten <nbolten@gmail.com>
 
 RUN apt-get update && \
     apt-get install -y \
+      fiona \
+      libspatialindex-dev \
       python3-pip
 
 # pip8 sucks - use 9
-RUN pip install --upgrade pip
+RUN pip3 install --upgrade pip
 
 RUN mkdir -p /www
 WORKDIR /www
