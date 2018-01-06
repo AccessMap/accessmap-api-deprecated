@@ -3,7 +3,6 @@ MAINTAINER Nick Bolten <nbolten@gmail.com>
 
 RUN apt-get update && \
     apt-get install -y \
-      libpq-dev \
       python3-pip
 
 RUN mkdir -p /docker-entrypoint-accessmapapi/accessmapapi
