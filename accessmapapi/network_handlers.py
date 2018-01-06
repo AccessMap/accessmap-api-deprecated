@@ -2,31 +2,32 @@ import geopandas as gpd
 import os
 import pickle
 import rtree
-from accessmapapi import app, cache, network
+from accessmapapi import app, network
+# from accessmapapi import app, cache, network
 
 
 def get_sidewalks():
-    sidewalks = cache.get('sidewalks')
+    sidewalks = app.config.get('sidewalks')
     if sidewalks:
         return sidewalks
 
     print('Reading sidewalks from data directory...')
     datadir = app.config['PEDDATADIR']
     sidewalks = gpd.read_file(os.path.join(datadir, 'sidewalks.geojson'))
-    cache.set('sidewalks', sidewalks)
+    app.config['sidewalks'] = sidewalks
 
     return sidewalks
 
 
 def get_crossings():
-    crossings = cache.get('crossings')
+    crossings = app.config.get('crossings')
     if crossings:
         return crossings
 
     print('Reading crossings from data directory...')
     datadir = app.config['PEDDATADIR']
     crossings = gpd.read_file(os.path.join(datadir, 'crossings.geojson'))
-    cache.set('crossings', crossings)
+    app.config['crossings'] = crossings
 
     return crossings
 
@@ -34,8 +35,8 @@ def get_crossings():
 def get_G():
     # TODO: separate out spatial index from graph creation process to make
     # this simpler?
-    G = cache.get('G')
-    sindex = cache.get('sindex')
+    G = app.config.get('G')
+    sindex = app.config.get('sindex')
 
     if G and sindex:
         return G, sindex
@@ -89,7 +90,7 @@ def get_G():
         with open(os.path.join(datadir, 'graph.txt'), 'wb') as f:
             pickle.dump(G, f)
 
-    cache.set('G', G)
-    cache.set('sindex', sindex)
+    app.config['G'] = G
+    app.config['sindex'] = sindex
 
     return G, sindex

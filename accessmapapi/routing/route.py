@@ -4,6 +4,7 @@ import networkx as nx
 from shapely.geometry import mapping
 from accessmapapi import network_handlers, utils
 from . import costs
+import time
 
 
 def dijkstra(origin, destination, cost_fun_gen=costs.cost_fun_generator,
@@ -34,10 +35,14 @@ def dijkstra(origin, destination, cost_fun_gen=costs.cost_fun_generator,
     # 3. Route from every start to every end.
     # 4. Pick the lowest-cost route, return its data according to the spec
     #    used by Mapbox.
+    before = time.time()
 
     G, sindex = network_handlers.get_G()
     if G is None:
         raise ValueError('Routing network could not be initialized')
+
+    after = time.time()
+    print('Time: ', after - before)
 
     cost_fun = costs.cost_fun_generator(**cost_kwargs)
 
