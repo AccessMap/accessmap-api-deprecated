@@ -109,40 +109,6 @@ The AccessMap Web API version 1 has two endpoints:
     * Format: Standard comma-separated bbox format: minLat,minLon,maxLat,maxLon
     * Example: v1/curbramps.geojson?bbox=-122.32893347740172,47.60685023396842,-122.32033967971802,47.61254994698394
 
-## Running with Docker
-The `Dockerfile` and `docker-compose.yaml` files allow you to get up and
-running with this app without needing to manually install anything. The
-`Dockerfile` automates the build process, while the `docker-compose.yaml` file
-automates the build + run steps to make things a little easier. If you are
-using the docker-compose method (recommended), you must use version 1.6+.
-
-#### Instructions for docker-compose
-
-1. Build the docker image.
-  * Run `docker-compose build`.
-2. Set the `DATABASE_URL` environment variable.
-  * This is the database connection string (see the format of
-    set_envs.sh_example). You can either set it on your host machine using the
-    set_envs.sh documentation (edit the file, then run `source set_envs.sh`) or
-    by editing `docker-compose.yaml` to have `- DATABASE_URL: thestring`.
-3. Run the docker image.
-  * Run `docker-compose up`.
-
-#### Instructions for pure docker
-
-1. Build the docker image.
-  * Run `docker build .`.
-2. Set the `DATABASE_URL` environment variable.
-  * This is the database connection string (see the format of
-    set_envs.sh_example). You can either set it on your host machine using the
-    set_envs.sh documentation (edit the file, then run `source set_envs.sh`) or
-    by supplying it via `-e DATABASE_URL=thestring` in the docker run command.
-3. Run the docker image.
-  * Run `docker run <image id>`, optionally with the `-e` flag if you did not
-    set the DATABASE_URL environment variable.
-
-The server will be available at localhost:5555.
-
 ## Contributing
 The AccessMap web API is written in Python 3.4+ and uses the Flask web
 framework. You can install all of the tools needed (preferably into a
