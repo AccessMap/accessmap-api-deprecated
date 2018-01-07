@@ -63,6 +63,8 @@ def get_G(app):
         with open(os.path.join(datadir, 'graph.txt'), 'wb') as f:
             pickle.dump(G, f)
 
+        app.config['G'] = G
+
         app.logger.info('Graph created.')
 
         return G
