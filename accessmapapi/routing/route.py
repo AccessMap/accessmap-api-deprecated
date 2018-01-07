@@ -2,7 +2,7 @@ import copy
 import geojson
 import networkx as nx
 from shapely.geometry import mapping
-from accessmapapi import network_handlers, utils
+from accessmapapi import app, utils
 from . import costs
 
 
@@ -34,9 +34,16 @@ def dijkstra(origin, destination, cost_fun_gen=costs.cost_fun_generator,
     # 3. Route from every start to every end.
     # 4. Pick the lowest-cost route, return its data according to the spec
     #    used by Mapbox.
-    G, sindex = network_handlers.get_G()
-    if G is None:
-        raise ValueError('Routing network could not be initialized')
+    G = app.config.get('G', None)
+    sindex = app.config.get('sindex', None)
+    if (G is None) or (sindex is None):
+        app.logger.warn('Got request for graph, but it does not exist yet.')
+
+        return {
+            'code': 'GraphNotReady',
+            'waypoints': [],
+            'routes': []
+        }
 
     cost_fun = costs.cost_fun_generator(**cost_kwargs)
 

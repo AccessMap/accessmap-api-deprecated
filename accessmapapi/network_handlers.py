@@ -2,10 +2,10 @@ import geopandas as gpd
 import os
 import pickle
 import rtree
-from accessmapapi import app, network
+from accessmapapi import network
 
 
-def get_sidewalks():
+def get_sidewalks(app):
     sidewalks = app.config.get('sidewalks', None)
     if sidewalks is not None:
         return sidewalks
@@ -18,7 +18,7 @@ def get_sidewalks():
     return sidewalks
 
 
-def get_crossings():
+def get_crossings(app):
     crossings = app.config.get('crossings', None)
     if crossings is not None:
         return crossings
@@ -31,7 +31,7 @@ def get_crossings():
     return crossings
 
 
-def get_G():
+def get_G(app):
     # TODO: separate out spatial index from graph creation process to make
     # this simpler?
     G = app.config.get('G', None)
@@ -40,47 +40,22 @@ def get_G():
     if (G is not None) and (sindex is not None):
         return G, sindex
 
-    sidewalks = get_sidewalks()
-    crossings = get_crossings()
+    app.logger.info('Graph or spatial index have not been loaded.')
+
+    sidewalks = get_sidewalks(app)
+    crossings = get_crossings(app)
 
     datadir = app.config['PEDDATADIR']
-    graph_path = os.path.join(datadir, 'graph.txt')
     sindex_path = os.path.join(datadir, 'graph_sindex')
+    graph_path = os.path.join(datadir, 'graph.txt')
 
-    failed = False
+    # Logic:
+    # 1. Attempt to read the spatial index.
+    # 2. If reading the spatial index fails, recreate the graph and return.
+    # 3. If the spatial index was successfully read, attempt to read the graph.
+    # 4. If the graph can't be read, try to create it.
 
-    if not G:
-        # Attempt to read it in.
-        if os.path.exists(graph_path):
-            app.logger.info('Reading graph...')
-            # Try to recover a previously-created graph, if possible
-            try:
-                with open(graph_path, 'rb') as f:
-                    G = pickle.load(f)
-                    app.logger.info('Read graph.')
-            except:
-                app.logger.info('Failed to read graph...')
-                failed = True
-        else:
-            app.logger.info('No graph file found.')
-            failed = True
-
-    if not sindex:
-        if os.path.exists('{}{}'.format(sindex_path, '.idx')):
-            app.logger.info('Reading spatial index...')
-            # Try to recover a previously-created graph, if possible
-            try:
-                sindex = rtree.index.Index(sindex_path)
-                app.logger.info('Read spatial index.')
-            except:
-                app.logger.info('Failed to read spatial index...')
-                os.remove(sindex_path)
-                failed = True
-        else:
-            app.logger.info('No spatial index found.')
-            failed = True
-
-    if failed:
+    def make_graph():
         # Create graph
         app.logger.info('Creating new graph. This may take a few minutes...')
         G, sindex = network.make_network(sidewalks, crossings, sindex_path)
@@ -88,6 +63,45 @@ def get_G():
         # Serialize to file for posterity
         with open(os.path.join(datadir, 'graph.txt'), 'wb') as f:
             pickle.dump(G, f)
+
+        app.logger.info('Graph created.')
+
+        return G, sindex
+
+    rebuilt = False
+
+    # FIXME: this is overly complicated. Abstract + simplify
+    if sindex is None:
+        if os.path.exists('{}{}'.format(sindex_path, '.idx')):
+            app.logger.info('Attempting to read spatial index...')
+            try:
+                sindex = rtree.index.Index(sindex_path)
+                app.logger.info('Read spatial index.')
+            except:
+                app.logger.info('Failed to read spatial index.')
+                os.remove('{}{}'.format(sindex_path, '.idx'))
+                os.remove('{}{}'.format(sindex_path, '.dat'))
+                G, sindex = make_graph()
+                rebuilt = True
+        else:
+            app.logger.info('No spatial index found.')
+            G, sindex = make_graph()
+            rebuilt = True
+
+    if not rebuilt and G is None:
+        # Attempt to read it in.
+        if os.path.exists(graph_path):
+            app.logger.info('Reading graph...')
+            try:
+                with open(graph_path, 'rb') as f:
+                    G = pickle.load(f)
+                    app.logger.info('Read graph.')
+            except:
+                app.logger.info('Failed to read graph...')
+                G, sindex = make_graph()
+        else:
+            app.logger.info('No graph file found.')
+            G, sindex = make_graph()
 
     app.config['G'] = G
     app.config['sindex'] = sindex

@@ -1,15 +1,11 @@
-FROM ubuntu:16.04
+FROM python:3.6-stretch
 MAINTAINER Nick Bolten <nbolten@gmail.com>
 
 RUN apt-get update && \
     apt-get install -y \
       fiona \
       libspatialindex4v5 \
-      libspatialindex-dev \
-      python3-pip
-
-# pip8 sucks - use 9
-RUN pip3 install --upgrade pip
+      libspatialindex-dev
 
 RUN mkdir -p /www
 WORKDIR /www
