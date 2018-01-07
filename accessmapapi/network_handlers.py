@@ -35,10 +35,9 @@ def get_G(app):
     # TODO: separate out spatial index from graph creation process to make
     # this simpler?
     G = app.config.get('G', None)
-    sindex = app.config.get('sindex', None)
 
-    if (G is not None) and (sindex is not None):
-        return G, sindex
+    if G is not None:
+        return G
 
     app.logger.info('Graph or spatial index have not been loaded.')
 
@@ -46,7 +45,6 @@ def get_G(app):
     crossings = get_crossings(app)
 
     datadir = app.config['PEDDATADIR']
-    sindex_path = os.path.join(datadir, 'graph_sindex')
     graph_path = os.path.join(datadir, 'graph.txt')
 
     # Logic:
@@ -59,10 +57,7 @@ def get_G(app):
         # Create graph
         app.logger.info('Creating new graph. This may take a few minutes...')
 
-        os.remove('{}{}'.format(sindex_path, '.idx'))
-        os.remove('{}{}'.format(sindex_path, '.dat'))
-
-        G, sindex = network.make_network(sidewalks, crossings, sindex_path)
+        G = network.make_network(sidewalks, crossings)
 
         # Serialize to file for posterity
         with open(os.path.join(datadir, 'graph.txt'), 'wb') as f:
@@ -70,42 +65,46 @@ def get_G(app):
 
         app.logger.info('Graph created.')
 
-        return G, sindex
+        return G
 
-    rebuilt = False
+    # Attempt to read it in.
+    if os.path.exists(graph_path):
+        app.logger.info('Reading graph...')
+        try:
+            with open(graph_path, 'rb') as f:
+                G = pickle.load(f)
+                app.logger.info('Graph read.')
 
-    # FIXME: this is overly complicated. Abstract + simplify
-    if sindex is None:
-        if os.path.exists('{}{}'.format(sindex_path, '.idx')):
-            app.logger.info('Attempting to read spatial index...')
-            try:
-                sindex = rtree.index.Index(sindex_path)
-                app.logger.info('Read spatial index.')
-            except:
-                app.logger.info('Failed to read spatial index.')
-                G, sindex = make_graph()
-                rebuilt = True
-        else:
-            app.logger.info('No spatial index found.')
-            G, sindex = make_graph()
-            rebuilt = True
+                app.config['G'] = G
 
-    if not rebuilt and G is None:
-        # Attempt to read it in.
-        if os.path.exists(graph_path):
-            app.logger.info('Reading graph...')
-            try:
-                with open(graph_path, 'rb') as f:
-                    G = pickle.load(f)
-                    app.logger.info('Read graph.')
-            except:
-                app.logger.info('Failed to read graph...')
-                G, sindex = make_graph()
-        else:
-            app.logger.info('No graph file found.')
-            G, sindex = make_graph()
+                return G
+        except:
+            app.logger.info('Failed to read graph.')
+    else:
+        app.logger.info('No graph file found.')
 
     app.config['G'] = G
+    G = make_graph()
+
+    return G
+
+
+def get_sindex(app):
+    # Check if it's already in-memory
+    sindex = app.config.get('sindex', None)
+
+    if sindex is not None:
+        return sindex
+
+    # FIXME: libspatialindex can't do multithreading and the dev team doesn't
+    # seem open to updating it. Consider rolling own rtree and/or just use
+    # spatialite
+    app.logger.info('Creating spatial index...')
+
+    G = get_G(app)
+    sindex = network.make_sindex(G)
     app.config['sindex'] = sindex
 
-    return G, sindex
+    app.logger.info('Spatial index created.')
+
+    return sindex

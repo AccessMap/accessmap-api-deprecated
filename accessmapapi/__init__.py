@@ -57,7 +57,12 @@ def create_app():
             else:
                 break
 
+        # Requesting the spatial index and graph causes these things to happen:
+        # - Sidewalk and crossing data gets read
+        # - The graph gets read and/or recreated
+        # - The spatial index gets created
         network_handlers.get_G(app)
+        network_handlers.get_sindex(app)
 
     # Initialize data
     thread = threading.Thread(name='read_data', target=initialize)

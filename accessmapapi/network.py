@@ -6,7 +6,7 @@ import rtree
 from shapely.geometry import Point
 
 
-def make_network(sidewalks, crossings, sindex_path):
+def make_network(sidewalks, crossings):
     '''Create a network given sidewalk and crossing data. Expectation is that
     the data is already 'noded', i.e. that all lines that should be connected
     roughly end-to-end.
@@ -21,12 +21,6 @@ def make_network(sidewalks, crossings, sindex_path):
     PRECISION = 7
 
     # We'll also create a spatial index so we can look up nodes/edges quickly!
-
-    # TODO: create sindex separately so it's easier to recreate - don't even
-    # save it if recreating is doesn't take very long. Also, rtree is based on
-    # C++ stuff that can segfault on bad disk data, which is bad news bears.
-    sindex = rtree.index.Index(sindex_path)
-
     def graph_from_gdf(gdf, path_type):
         gdf['length'] = gdf.geometry.apply(lambda x: haversine(x.coords))
         sidewalk_attrs = ['geometry', 'layer', 'length', 'incline']
@@ -52,19 +46,9 @@ def make_network(sidewalks, crossings, sindex_path):
 
             # Add start node
             G.add_node(start_node, x=start[0], y=start[1])
-            obj_s = {
-                'type': 'node',
-                'lookup': start_node
-            }
-            sindex.insert(0, Point(start).bounds, obj_s)
 
             # Add end node
             G.add_node(end_node, x=end[0], y=end[1])
-            obj_e = {
-                'type': 'node',
-                'lookup': end_node
-            }
-            sindex.insert(0, Point(end).bounds, obj_e)
 
             # Add edge
             # retain original order in which geometry was added - necessary to
@@ -74,12 +58,6 @@ def make_network(sidewalks, crossings, sindex_path):
 
             G.add_edge(start_node, end_node, path_type=path_type,
                        **row_attrs)
-            obj_v = {
-                'type': 'edge',
-                'lookup': [start_node, end_node]
-            }
-
-            sindex.insert(0, geometry.bounds, obj_v)
 
         return G
 
@@ -89,7 +67,26 @@ def make_network(sidewalks, crossings, sindex_path):
     G = nx.compose(G_sw, G_cr)
     G
 
-    return G, sindex
+    return G
+
+
+def make_sindex(G):
+    sindex = rtree.index.Index()
+
+    for node, d in G.nodes(data=True):
+        # TODO: potential point for speedup - create bounds directly from x, y
+        sindex.insert(0, Point(d['x'], d['y']).bounds, {
+            'type': 'node',
+            'lookup': node
+        })
+
+    for u, v, d in G.edges(data=True):
+        sindex.insert(0, d['geometry'].bounds, {
+            'type': 'edge',
+            'lookup': [u, v]
+        })
+
+    return sindex
 
 
 def haversine(coords):

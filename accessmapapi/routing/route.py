@@ -39,8 +39,13 @@ def dijkstra(origin, destination, cost_fun_gen=costs.cost_fun_generator,
     if (G is None) or (sindex is None):
         app.logger.warn('Got request for graph, but it does not exist yet.')
 
+        if G is None:
+            code = 'GraphNotReady'
+        elif sindex is None:
+            code = 'SpatialIndexNotReady'
+
         return {
-            'code': 'GraphNotReady',
+            'code': code,
             'waypoints': [],
             'routes': []
         }
