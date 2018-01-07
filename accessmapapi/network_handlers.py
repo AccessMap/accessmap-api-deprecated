@@ -3,7 +3,6 @@ import os
 import pickle
 import rtree
 from accessmapapi import app, network
-# from accessmapapi import app, cache, network
 
 
 def get_sidewalks():
@@ -11,7 +10,7 @@ def get_sidewalks():
     if sidewalks is not None:
         return sidewalks
 
-    print('Reading sidewalks from data directory...')
+    app.logger.info('Reading sidewalks from data directory...')
     datadir = app.config['PEDDATADIR']
     sidewalks = gpd.read_file(os.path.join(datadir, 'sidewalks.geojson'))
     app.config['sidewalks'] = sidewalks
@@ -24,7 +23,7 @@ def get_crossings():
     if crossings is not None:
         return crossings
 
-    print('Reading crossings from data directory...')
+    app.logger.info('Reading crossings from data directory...')
     datadir = app.config['PEDDATADIR']
     crossings = gpd.read_file(os.path.join(datadir, 'crossings.geojson'))
     app.config['crossings'] = crossings
@@ -53,37 +52,37 @@ def get_G():
     if not G:
         # Attempt to read it in.
         if os.path.exists(graph_path):
-            print('Reading graph...')
+            app.logger.info('Reading graph...')
             # Try to recover a previously-created graph, if possible
             try:
                 with open(graph_path, 'rb') as f:
                     G = pickle.load(f)
-                    print('Done')
+                    app.logger.info('Read graph.')
             except:
-                print('Failed to read graph...')
+                app.logger.info('Failed to read graph...')
                 failed = True
         else:
-            print('No graph file found.')
+            app.logger.info('No graph file found.')
             failed = True
 
     if not sindex:
         if os.path.exists('{}{}'.format(sindex_path, '.idx')):
-            print('Reading spatial index...')
+            app.logger.info('Reading spatial index...')
             # Try to recover a previously-created graph, if possible
             try:
                 sindex = rtree.index.Index(sindex_path)
-                print('Done')
+                app.logger.info('Read spatial index.')
             except:
-                print('Failed to read spatial index...')
+                app.logger.info('Failed to read spatial index...')
                 os.remove(sindex_path)
                 failed = True
         else:
-            print('No spatial index found.')
+            app.logger.info('No spatial index found.')
             failed = True
 
     if failed:
         # Create graph
-        print('Creating new graph + index. This may take a few minutes...')
+        app.logger.info('Creating new graph. This may take a few minutes...')
         G, sindex = network.make_network(sidewalks, crossings, sindex_path)
 
         # Serialize to file for posterity

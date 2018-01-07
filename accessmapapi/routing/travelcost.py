@@ -18,7 +18,6 @@ def travel_cost(lat, lon, costfun, table='routing_noded', maxcost=1000):
     # result = db.engine.execute(origin_sql)
     # origin = result.fetchone()[0]
     # result.close()
-    # print(origin)
 
     # costfun = 'length'
     # maxcost = 1000
