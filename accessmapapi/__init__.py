@@ -2,6 +2,7 @@
 from flask import Flask
 import logging
 import os
+import time
 import threading
 from accessmapapi import network_handlers
 
@@ -41,9 +42,19 @@ def create_app():
         response.headers.add("Access-Control-Allow-Methods", "GET")
         return response
 
+    def initialize():
+        while True:
+            havesw = os.path.exists(os.path.join(datadir, 'sidewalks.geojson'))
+            havecr = os.path.exists(os.path.join(datadir, 'crossings.geojson'))
+            if havesw and havecr:
+                break
+            app.logger.info('No input data, checking again in 2 seconds...')
+            time.sleep(2)
+
+        network_handlers.get_G(app)
+
     # Initialize data
-    thread = threading.Thread(name='read_data', target=network_handlers.get_G,
-                              args=[app])
+    thread = threading.Thread(name='read_data', target=initialize)
     thread.start()
 
     return app
