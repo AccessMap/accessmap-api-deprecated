@@ -21,6 +21,10 @@ def make_network(sidewalks, crossings, sindex_path):
     PRECISION = 7
 
     # We'll also create a spatial index so we can look up nodes/edges quickly!
+
+    # TODO: create sindex separately so it's easier to recreate - don't even
+    # save it if recreating is doesn't take very long. Also, rtree is based on
+    # C++ stuff that can segfault on bad disk data, which is bad news bears.
     sindex = rtree.index.Index(sindex_path)
 
     def graph_from_gdf(gdf, path_type):

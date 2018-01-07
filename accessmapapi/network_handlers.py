@@ -58,6 +58,10 @@ def get_G(app):
     def make_graph():
         # Create graph
         app.logger.info('Creating new graph. This may take a few minutes...')
+
+        os.remove('{}{}'.format(sindex_path, '.idx'))
+        os.remove('{}{}'.format(sindex_path, '.dat'))
+
         G, sindex = network.make_network(sidewalks, crossings, sindex_path)
 
         # Serialize to file for posterity
@@ -79,8 +83,6 @@ def get_G(app):
                 app.logger.info('Read spatial index.')
             except:
                 app.logger.info('Failed to read spatial index.')
-                os.remove('{}{}'.format(sindex_path, '.idx'))
-                os.remove('{}{}'.format(sindex_path, '.dat'))
                 G, sindex = make_graph()
                 rebuilt = True
         else:

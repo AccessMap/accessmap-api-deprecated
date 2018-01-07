@@ -44,12 +44,18 @@ def create_app():
 
     def initialize():
         while True:
-            havesw = os.path.exists(os.path.join(datadir, 'sidewalks.geojson'))
-            havecr = os.path.exists(os.path.join(datadir, 'crossings.geojson'))
-            if havesw and havecr:
+            failed = False
+            try:
+                network_handlers.get_sidewalks(app)
+                network_handlers.get_crossings(app)
+            except:
+                failed = True
+
+            if failed:
+                app.logger.info('Cannot read input data, checking in 2 secs.')
+                time.sleep(2)
+            else:
                 break
-            app.logger.info('No input data, checking again in 2 seconds...')
-            time.sleep(2)
 
         network_handlers.get_G(app)
 
