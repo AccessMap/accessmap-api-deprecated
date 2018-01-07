@@ -37,11 +37,13 @@ def dijkstra(origin, destination, cost_fun_gen=costs.cost_fun_generator,
     G = app.config.get('G', None)
     sindex = app.config.get('sindex', None)
     if (G is None) or (sindex is None):
-        app.logger.warn('Got request for graph, but it does not exist yet.')
-
         if G is None:
+            app.logger.warn('Got request for routing, but the graph does ' +
+                            'not exist yet.')
             code = 'GraphNotReady'
         elif sindex is None:
+            app.logger.warn('Got request for routing, but the spatial index ' +
+                            'does not exist yet.')
             code = 'SpatialIndexNotReady'
 
         return {
