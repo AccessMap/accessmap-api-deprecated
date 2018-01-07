@@ -129,6 +129,10 @@ directory:
 
     python3 ./runserver.py
 
+In a production environment, use the (included) gunicorn server:
+
+    gunicorn -b 0.0.0.0:5555 --access-logfile=- accessmapapi:app
+
 You can then test your local copy by pointing your web browser to localhost,
 e.g. for a v2 sidewalks request:
 

@@ -1,10 +1,12 @@
 '''The flask application package.'''
 from flask import Flask
+import logging
 import os
 
 
 # Set up the app
 app = Flask(__name__)
+
 
 # Set up the configuration data
 if 'PEDDATADIR' in os.environ:
@@ -16,6 +18,19 @@ app.config['PEDDATADIR'] = datadir
 
 # To get debugging messages:
 app.config['PROPAGATE_EXCEPTIONS'] = True
+
+
+# Set up logging
+@app.before_first_request
+def setup_logging():
+    formatter = logging.Formatter(
+        '[%(levelname)s] %(message)s'
+    )
+    handler = logging.StreamHandler()
+    handler.setFormatter(formatter)
+    app.logger.addHandler(handler)
+    app.logger.setLevel(logging.INFO)
+
 
 # CORS responses
 # FIXME: re-enable CORS soon
