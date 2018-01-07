@@ -7,8 +7,8 @@ from accessmapapi import app, network
 
 
 def get_sidewalks():
-    sidewalks = app.config.get('sidewalks')
-    if sidewalks:
+    sidewalks = app.config.get('sidewalks', None)
+    if sidewalks is not None:
         return sidewalks
 
     print('Reading sidewalks from data directory...')
@@ -20,8 +20,8 @@ def get_sidewalks():
 
 
 def get_crossings():
-    crossings = app.config.get('crossings')
-    if crossings:
+    crossings = app.config.get('crossings', None)
+    if crossings is not None:
         return crossings
 
     print('Reading crossings from data directory...')
@@ -35,10 +35,10 @@ def get_crossings():
 def get_G():
     # TODO: separate out spatial index from graph creation process to make
     # this simpler?
-    G = app.config.get('G')
-    sindex = app.config.get('sindex')
+    G = app.config.get('G', None)
+    sindex = app.config.get('sindex', None)
 
-    if G and sindex:
+    if (G is not None) and (sindex is not None):
         return G, sindex
 
     sidewalks = get_sidewalks()

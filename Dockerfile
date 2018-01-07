@@ -4,6 +4,7 @@ MAINTAINER Nick Bolten <nbolten@gmail.com>
 RUN apt-get update && \
     apt-get install -y \
       fiona \
+      libspatialindex4v5 \
       libspatialindex-dev \
       python3-pip
 
