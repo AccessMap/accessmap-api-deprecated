@@ -61,7 +61,7 @@ def dijkstra(origin, destination, cost_fun_gen=costs.cost_fun_generator,
     #     return cost_fun(u, v, d)
 
     # Find closest edge or node to points
-    def initialization_points(point, point_type):
+    def initialization_points(point):
         '''Find these data, given a query point starting anywhere in the world:
             1. The closest point in the dataset to the query.
             2. The initial cost(s) to travel from that point to the nearest
@@ -78,68 +78,70 @@ def dijkstra(origin, destination, cost_fun_gen=costs.cost_fun_generator,
             }]
 
         '''
+        # FIXME: this does not actually find the closest geometry, just the
+        # closest sindex entry. We need a proper, in-meters, 'closest' function
         query = sindex.nearest(point.bounds, 1, objects=True)
         closest = [q.object for q in query][0]
         if closest['type'] == 'node':
+            # It's a node! Easy-peasy
             results = [{
                 'initial_cost': 0,
                 'node': closest['lookup']
             }]
         else:
-            # It's an edge! Need to generate two nodes and two fake edges
-            node1, node2 = closest['lookup']
+            # It's an edge! Need to split it and calculate initial trip costs
+            u, v = closest['lookup']
 
-            result1 = {
-                'node': node1
-            }
-
-            result2 = {
-                'node': node2
-            }
-
-            # Calculate partial costs. Note: the cost function is getting
-            # inserted here - not generalizable!
-
-            # 1. Set aside two copies of the edge
-            edge1 = copy.deepcopy(G[node1][node2])
-            edge2 = copy.deepcopy(G[node1][node2])
+            # 1. Set aside edge copies for modification
+            edge = G[u][v]
+            edge_u = copy.deepcopy(edge)
+            edge_v = copy.deepcopy(edge)
+            # the graph is undirected, so we need to re-extract u and v from
+            # the edge to maintain their correspondence
+            # TODO: Use a DiGraph? Doubles graph size...
+            u = edge['from']
+            v = edge['to']
 
             # 2. Recalculate the length, cut the geometry
-            fraction_along = edge1['geometry'].project(point, normalized=True)
-            distance = edge1['geometry'].length * fraction_along
-            geom1, geom2 = utils.cut(edge1['geometry'], distance)
+            fraction_along = edge['geometry'].project(point, normalized=True)
+            distance = edge['geometry'].length * fraction_along
+            geom_u, geom_v = utils.cut(edge['geometry'], distance)
 
             # 3. Save the new geometries and lengths
-            edge1['length'] = fraction_along * edge1['length']
-            edge2['length'] = (1.0 - fraction_along) * edge2['length']
-            edge1['geometry'] = geom1
-            edge2['geometry'] = geom2
+            edge_u['geometry'] = geom_u
+            edge_v['geometry'] = geom_v
 
-            # 4. Reverse geometries depending on point type
-            # If it's a 'start' point, then all edges should be 'outgoing',
-            # i.e. we need to reverse the first segment's geometry. Otherwise,
-            # it's an end coordinate and all edges should be 'incoming'.
-            if point_type == 'start':
-                edge1 = reverse_edge(edge1)
-            else:
-                edge2 = reverse_edge(edge2)
+            edge_u['length'] = fraction_along * edge['length']
+            edge_v['length'] = (1.0 - fraction_along) * edge['length']
+
+            edge_u['to'] = -1
+            edge_v['from'] = -1
 
             # 4. Add initial costs
-            # TODO: add a 'pretend' node? for cost fun params? Nodes are
-            # currently ignored, for the cost function.
-            result1['initial_cost'] = cost_fun(node1, node2, edge1)
-            result2['initial_cost'] = cost_fun(node1, node2, edge2)
+            # NOTE: u and v only communicate directionality right now - the
+            # first argument to cost_fun doesn't have to be perfectly accurate.
+            cost_u = cost_fun(u, -1, edge_u)
+            cost_v = cost_fun(-1, v, edge_v)
 
             # 5. Save the edge
-            result1['initial_edge'] = edge1
-            result2['initial_edge'] = edge2
+            result_u = {
+                'node': u,
+                'initial_cost': cost_u,
+                'initial_edge': edge_u
+            }
 
-            results = [result1, result2]
+            result_v = {
+                'node': v,
+                'initial_cost': cost_v,
+                'initial_edge': edge_v
+            }
+
+            results = [result_u, result_v]
 
         return results
 
-    origins = initialization_points(origin, point_type='start')
-    destinations = initialization_points(destination, point_type='end')
+    origins = initialization_points(origin)
+    destinations = initialization_points(destination)
 
     paths_data = []
     for o in origins:
@@ -147,20 +149,18 @@ def dijkstra(origin, destination, cost_fun_gen=costs.cost_fun_generator,
             if o == d:
                 # Start and end points are the same - no route!
                 continue
+            # FIXME: We also need to check starting on the same edge as a
+            # special case - should evaluate cost of traversing partial
+            # segment vs. going to endpoints.
 
             path_data = geojson.FeatureCollection([])
 
             try:
-                # TODO: Use single_source_dijkstra so the graph doesn't have
-                # to be traversed again to find the total cost
                 # TODO: consider just reimplementing custom dijkstra so that
                 # temporary edges/costing can be used and more custom behavior
                 # can be encoded (such as infinite costs). NetworkX
                 # implementation is under networkx>algorithms>shortest_paths>
                 # weighted: _dijkstra_multisource
-                # TODO: reimplementing dijkstra is probably a good idea
-                # anyways, to make following the 'reverse' path possible
-                # without doubling + complicating the graph.
                 total_cost, path = nx.single_source_dijkstra(G, o['node'],
                                                              d['node'],
                                                              weight=cost_fun)
@@ -168,28 +168,28 @@ def dijkstra(origin, destination, cost_fun_gen=costs.cost_fun_generator,
                 continue
 
             if 'initial_edge' in o:
+                reverse = o['initial_edge']['to'] == -1
                 feature1 = edge_to_feature(o['initial_edge'],
                                            o['initial_cost'],
-                                           False)
+                                           reverse)
                 path_data['features'].append(feature1)
 
-            for node_id1, node_id2 in zip(path[:-1], path[1:]):
-                node1 = G.nodes[node_id1]
-                node2 = G.nodes[node_id2]
-                edge = G[node_id1][node_id2]
+            for u, v in zip(path[:-1], path[1:]):
+                edge = G[u][v]
 
-                cost = cost_fun(node1, node2, edge)
+                cost = cost_fun(u, v, edge)
 
-                reverse = edge['from'] != node_id1
+                reverse = edge['from'] != u
 
                 feature = edge_to_feature(edge, cost, reverse)
 
                 path_data['features'].append(feature)
 
             if 'initial_edge' in d:
+                reverse = d['initial_edge']['from'] == -1
                 feature2 = edge_to_feature(d['initial_edge'],
                                            d['initial_cost'],
-                                           False)
+                                           reverse)
                 path_data['features'].append(feature2)
 
             total_cost += o['initial_cost']
@@ -208,8 +208,8 @@ def dijkstra(origin, destination, cost_fun_gen=costs.cost_fun_generator,
         }
 
     # Start at first point
-    coords = [best_path['features'][0]['geometry']['coordinates'][0]]
     segments = geojson.FeatureCollection([])
+    coords = [best_path['features'][0]['geometry']['coordinates'][0]]
     for feature in best_path['features']:
         segments['features'].append(feature)
         coords += feature['geometry']['coordinates'][1:]
@@ -294,10 +294,15 @@ def dijkstra(origin, destination, cost_fun_gen=costs.cost_fun_generator,
 def edge_to_feature(edge, cost, reverse=False):
     feature = geojson.Feature()
 
+    # Prevent editing of original edge
+    edge = copy.deepcopy(edge)
+
     if reverse:
-        edge = reverse_edge(edge)
-    else:
-        edge = copy.copy(edge)
+        coords = list(reversed(edge['geometry'].coords))
+        edge['geometry'].coords = coords
+
+        if 'incline' in edge:
+            edge['incline'] = -1.0 * edge['incline']
 
     feature['geometry'] = mapping(edge['geometry'])
 
@@ -310,14 +315,3 @@ def edge_to_feature(edge, cost, reverse=False):
     feature['properties'] = edge
 
     return feature
-
-
-def reverse_edge(edge):
-    new_edge = copy.copy(edge)
-    coords = list(reversed(edge['geometry'].coords))
-    new_edge['geometry'].coords = coords
-
-    if 'incline' in new_edge:
-        new_edge['incline'] = -1.0 * new_edge['incline']
-
-    return new_edge

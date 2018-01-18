@@ -157,7 +157,7 @@ def cost_fun_generator(kdist=1.0, kincline=1.0, kcrossing=1.0, kcurb=1e10,
 
         # Incline cost
         if path_type == 'sidewalk':
-            if d['from'] == u:
+            if (d['from'] == u) or (d['to'] == v):
                 # Going in same direction as the geometry
                 cost += kincline * piecewise(d['incline'])
             else:
