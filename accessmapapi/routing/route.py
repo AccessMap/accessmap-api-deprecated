@@ -258,7 +258,7 @@ def dijkstra(origin, destination, cost_fun_gen=costs.cost_fun_generator,
             'type': 'Feature',
             'geometry': {
               'type': 'Point',
-              'coordinates': list(waypoint.coords)
+              'coordinates': waypoint.coords[0]
             },
             'properties': {}
         }
