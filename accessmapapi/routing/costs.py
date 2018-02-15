@@ -1,4 +1,10 @@
 '''Defines cost function generators for optimal path finding in networkx.'''
+import math
+
+
+def tobler(grade):
+    # Modified to be in meters / second rather than km / h
+    return (10. / 6) * math.exp(-3.5 * grade + 0.05)
 
 
 def piecewise_generator(val_min=-0.09, val_ideal=-0.01, val_max=0.0833):
@@ -32,6 +38,7 @@ def piecewise_generator(val_min=-0.09, val_ideal=-0.01, val_max=0.0833):
     :type val_max: float
 
     '''
+    MID_COST = 0.0
 
     val_min = float(val_min)
     val_ideal = float(val_ideal)
@@ -68,14 +75,12 @@ def piecewise_generator(val_min=-0.09, val_ideal=-0.01, val_max=0.0833):
 
         return (m, b)
 
-    #
-    # Piecewise part - figure out which function to use to calculate y
-    #
+    # # Piecewise part - figure out which function to use to calculate y #
 
     # Calculate mid-control points as being half-way between the min and max
     # values, and with a set y value of 1/4.
-    mid_low = [(val_min + val_ideal) / 2, 0.1]
-    mid_high = [(val_max + val_ideal) / 2, 0.1]
+    mid_low = [(val_min + val_ideal) / 2, MID_COST]
+    mid_high = [(val_max + val_ideal) / 2, MID_COST]
 
     m1, b1 = line_mb([val_min, 1], mid_low)
     m2, b2 = line_mb(mid_low, [val_ideal, 0])
@@ -85,7 +90,7 @@ def piecewise_generator(val_min=-0.09, val_ideal=-0.01, val_max=0.0833):
     # TODO: work around returning infinite/large cost - useful for showing
     # 'bad' routes to users, which may still be informative
     def piecewise(x):
-        out_of_range = 1000.0
+        out_of_range = math.inf
 
         if x < val_min:
             return out_of_range
@@ -103,9 +108,9 @@ def piecewise_generator(val_min=-0.09, val_ideal=-0.01, val_max=0.0833):
     return piecewise
 
 
-def cost_fun_generator(kdist=1.0, kincline=1.0, kcrossing=1.0, kcurb=1e10,
-                       incline_min=-0.09, incline_ideal=-0.01,
-                       incline_max=0.0833, avoid_curbs=True):
+def cost_fun_generator(kdist=0.1, kincline=0.8, kcrossing=0.1,
+                       incline_min=-0.1, incline_max=0.085,
+                       avoid_curbs=True):
     '''Calculates a cost-to-travel that balances distance vs. steepness vs.
     needing to cross the street.
 
@@ -119,19 +124,14 @@ def cost_fun_generator(kdist=1.0, kincline=1.0, kcrossing=1.0, kcurb=1e10,
     :param incline_min: Maximum downhill incline indicated by the user, e.g.
                         -0.1 for 10% downhill.
     :type incline_min: float
-    :param incline_ideal: Ideal incline indicated by the user, e.g. -0.01 for
-                          1% downhill.
-    :type incline_ideal: float
-    :param incline_max: Maximum uphill incline indicated by the user.
+    :param incline_max: Positive incline (uphill) maximum, as grade.
     :type incline_max: float
     :param avoid_curbs: Whether curb ramps should be avoided.
     :type avoid_curbs: bool
 
     '''
-    piecewise = piecewise_generator(incline_min, incline_ideal, incline_max)
+    # piecewise = piecewise_generator(INCLINE_MIN, INCLINE_IDEAL, INCLINE_MAX)
 
-    # TODO: should make some DSL or something for this, or make it an easy
-    # to configure file
     def cost_fun(u, v, d):
         '''Networkx dijkstra-format cost function. Networkx provides access to
         the incoming node, the outgoing node, and the edge itself, which can
@@ -148,33 +148,49 @@ def cost_fun_generator(kdist=1.0, kincline=1.0, kcrossing=1.0, kcurb=1e10,
         # MultiDigraph may have multiple edges. Right now, we ignore this
         # and just pick the first edge. A simple DiGraph may be more
         # appropriate?
+
+        # Set up initial costs - these should start at 0, and be max of 1 or
+        # inf.
+        time = 0
+
         path_type = d['path_type']
 
-        cost = 0
-
-        # Distance cost
-        cost += kdist * d['length']
-
-        # Incline cost
+        # Initial speed based on incline
         if path_type == 'sidewalk':
             if (d['from'] == u) or (d['to'] == v):
                 # Going in same direction as the geometry
-                cost += kincline * piecewise(d['incline'])
+                incline = d['incline']
             else:
-                # Going in the opposite direction - flip the incline
-                cost += kincline * piecewise(-1.0 * d['incline'])
+                # Going in opposite direction as the geometry
+                incline = -1 * d['incline']
 
-        # Crossing cost
+            # incline_cost = piecewise(-1.0 * d['incline'])
+        else:
+            # Assume all other paths are flat
+            incline = 0
+
+        if incline > incline_max:
+            return math.inf
+        if incline < incline_min:
+            return math.inf
+        speed = tobler(incline)
+
+        # Initial time estimate (in seconds) - based on speed
+        time = d['length'] / speed
+
+        # Crossings imply a delay. Would be good to make this driven by data,
+        # but can guess for now
         if path_type == 'crossing':
-            cost += kcrossing
+            time += 30
 
         # Curb cost
-        if path_type == 'crossing':
-            if avoid_curbs:
-                curbramps = d['curbramps']
-                if curbramps == 0:
-                    cost += kcurb
+        if avoid_curbs:
+            if (path_type == 'crossing') and d['curbramps'] == 0:
+                # A hard barrier - exit early with infinite cost
+                return math.inf
 
-        return cost
+        # Return time estimate - this is currently the cost
+
+        return time
 
     return cost_fun

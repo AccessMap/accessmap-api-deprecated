@@ -64,10 +64,12 @@ def routev2():
         })
 
     # request route
-    params = ['avoid', 'incline_min', 'incline_ideal', 'incline_max']
+    params = ['avoid', 'incline_min', 'incline_max']
     cost_params = {
         'avoid_curbs': False
     }
+
+    # Params
     for param in params:
         value = request.args.get(param, None)
         if value is not None:
@@ -76,8 +78,10 @@ def routev2():
                 barriers = value.split('|')
                 if 'curbs' in barriers:
                     cost_params['avoid_curbs'] = True
-            else:
-                cost_params[param] = value
+            elif param == 'incline_max':
+                cost_params['incline_max'] = float(value)
+            elif param == 'incline_min':
+                cost_params['incline_min'] = float(value)
 
     origin_coords = [float(c) for c in origin.split(',')]
     destination_coords = [float(c) for c in destination.split(',')]

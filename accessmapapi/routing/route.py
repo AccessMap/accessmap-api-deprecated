@@ -1,5 +1,6 @@
 import copy
 import geojson
+import math
 import networkx as nx
 from shapely.geometry import mapping
 from accessmapapi import app, utils
@@ -201,6 +202,16 @@ def dijkstra(origin, destination, cost_fun_gen=costs.cost_fun_generator,
     if paths_data:
         best_path = sorted(paths_data, key=lambda x: x['total_cost'])[0]
     else:
+        return {
+            'code': 'NoRoute',
+            'waypoints': [],
+            'routes': []
+        }
+
+    if best_path['total_cost'] == math.inf:
+        # Note valid paths were found.
+        # TODO: extract something more informative so users know what params
+        # to relax.
         return {
             'code': 'NoRoute',
             'waypoints': [],
