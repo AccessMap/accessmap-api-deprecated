@@ -23,25 +23,25 @@ def cut(line, distance):
 def haversine(coords):
     # Given a list of coordinates (e.g. linestring.coords), calculate the
     # great circle length of the line, in meters
-    d = 0
+    RADIUS = 6378100  # Radius of the earth in meters
+
+    d_tot = 0
     for i, coord in enumerate(coords):
         if i == 0:
-            pass
+            continue
         last_coord = coords[i - 1]
 
-        x1, y1 = last_coord
-        x2, y2 = coord
+        lon1, lat1 = last_coord
+        lon2, lat2 = coord
 
-        radius = 6371  # km
-        dx = math.radians(x2 - x1)
-        dy = math.radians(y2 - y1)
+        dlon = math.radians(lon2 - lon1)
+        dlat = math.radians(lat2 - lat1)
 
-        a = math.sin(dy / 2) * math.sin(dy / 2) + \
-            math.cos(math.radians(y1)) * math.cos(math.radians(y2)) * \
-            math.sin(dx / 2) * math.sin(dx / 2)
+        a = math.sin(dlat / 2)**2 + \
+            math.cos(math.radians(lat2)) * math.cos(math.radians(lat1)) * \
+            math.sin(dlon / 2)**2
 
-        c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-        d_km = radius * c
-        d += d_km * 1000.
+        d = 2 * RADIUS * math.asin(math.sqrt(a))
+        d_tot += d
 
-    return d
+    return d_tot

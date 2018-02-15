@@ -82,6 +82,8 @@ def routev2():
                 cost_params['incline_max'] = float(value)
             elif param == 'incline_min':
                 cost_params['incline_min'] = float(value)
+            elif param == 'base_speed':
+                cost_params['base_speed'] = float(value)
 
     origin_coords = [float(c) for c in origin.split(',')]
     destination_coords = [float(c) for c in destination.split(',')]

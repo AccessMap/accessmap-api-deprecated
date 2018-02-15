@@ -1,126 +1,36 @@
 '''Defines cost function generators for optimal path finding in networkx.'''
 import math
 
+# Default base moving speeds for different modes. All in m/s.
+WALK_BASE = 10. / 6  # Tobler's hiking function for hikers
+WHEELCHAIR_BASE = 0.6  # Rough estimate
+POWERED_BASE = 2  # Roughly 5 mph
 
-def tobler(grade):
+# 1 / DIVISOR = speed where cutoff starts to apply, dictates exponential's k.
+DIVISOR = 5
+
+# 'fastest' incline. -0.0087 is straight from Tobler's hiking function
+INCLINE_IDEAL = -0.0087
+
+# TODO: Minimum base speeds for wheelchairs - derive from torque etc and
+# safety, use to determine aggressiveness of cost function. Parameterize from
+# client somehow.
+
+
+def find_k(g, m, n):
+    return math.log(n) / abs(g - m)
+
+
+def tobler(grade, k=3.5, m=INCLINE_IDEAL, base=WALK_BASE):
     # Modified to be in meters / second rather than km / h
-    return (10. / 6) * math.exp(-3.5 * grade + 0.05)
+    return base * math.exp(-k * abs(grade - m))
 
 
-def piecewise_generator(val_min=-0.09, val_ideal=-0.01, val_max=0.0833):
-    '''Produces a piecewise linear function describe by three control points:
-    A) The maximum downhill incline (val_min)
-    B) The ideal, easiest incline (val_ideal)
-    C) The maximum uphill incline (val_max)
-
-    All are in units of incline, i.e. 1% = 0.01. The y values are set to 1.0
-    for the maximum inclines and 0 for the ideal incline. The values
-    interpolated are derived from educated guesses and are the subject of
-    future research: clearly, the function should be overall convex, as e.g. a
-    4% incline is more than twice as 'difficult' as a 2% incline. The exact
-    level of convexity is unclear without more data, however.
-
-    This function currently hard-codes a piecewise approximation of convexity,
-    setting intermediate control points at 1/4 of maximum cost (i.e 0.25)
-    half-way between the max incline points and the ideal incline point.
-
-    It's assumed that val_min < ideal < val_max. Input values outside of the
-    range of [val_min, val_max] are given a very large cost.
-
-    :param val_min: Maximum downhill incline in units of incline (e.g. 1% =
-                    0.01). Must be between 0 and 1.
-    :type val_min: float
-    :param val_ideal: Ideal incline in units of incline (e.g. 1% = 0.01). Often
-                      slightly downhill, like -0.01.
-    :type val_ideal: float
-    :param val_max: Maximum uphill incline in units of incline
-                    (e.g. 1% = 0.01). Must be between 0 and 1.
-    :type val_max: float
-
-    '''
-    MID_COST = 0.0
-
-    val_min = float(val_min)
-    val_ideal = float(val_ideal)
-    val_max = float(val_max)
-
-    #
-    # Function to find the equation for a line
-    #
-
-    def line_mb(pt1, pt2):
-        '''Given two xy points, return the m and b variables in the line
-        equation (y = mx + b).
-
-        :param pt1: Point 1
-        :type pt1: 2-tuple of xy coord
-        :param pt2: Point 2
-        :type pt2: 2-tuple of xy coord
-        :returns: dictionary of 'm' and 'b'
-        :rtype: dict
-
-        '''
-
-        x1, y1 = pt1
-        x2, y2 = pt2
-
-        dx = x2 - x1
-        if dx == 0:
-            # Line is vertical, has no meaning - return 0 cost
-            return (0, 0)
-        dy = y2 - y1
-
-        m = dy / dx
-        b = y2 - m * x2
-
-        return (m, b)
-
-    # # Piecewise part - figure out which function to use to calculate y #
-
-    # Calculate mid-control points as being half-way between the min and max
-    # values, and with a set y value of 1/4.
-    mid_low = [(val_min + val_ideal) / 2, MID_COST]
-    mid_high = [(val_max + val_ideal) / 2, MID_COST]
-
-    m1, b1 = line_mb([val_min, 1], mid_low)
-    m2, b2 = line_mb(mid_low, [val_ideal, 0])
-    m3, b3 = line_mb([val_ideal, 0], mid_high)
-    m4, b4 = line_mb(mid_high, [val_max, 1])
-
-    # TODO: work around returning infinite/large cost - useful for showing
-    # 'bad' routes to users, which may still be informative
-    def piecewise(x):
-        out_of_range = math.inf
-
-        if x < val_min:
-            return out_of_range
-        elif x < mid_low[0]:
-            return m1 * x + b1
-        elif x < val_ideal:
-            return m2 * x + b2
-        elif x < mid_high[0]:
-            return m3 * x + b3
-        elif x < val_max:
-            return m4 * x + b4
-        else:
-            return out_of_range
-
-    return piecewise
-
-
-def cost_fun_generator(kdist=0.1, kincline=0.8, kcrossing=0.1,
-                       incline_min=-0.1, incline_max=0.085,
-                       avoid_curbs=True):
+def cost_fun_generator(base_speed=WALK_BASE, incline_min=-0.1,
+                       incline_max=0.085, avoid_curbs=True):
     '''Calculates a cost-to-travel that balances distance vs. steepness vs.
     needing to cross the street.
 
-    :param kdist: scaling factor for length of route traveled.
-    :type kdist: float
-    :param kincline: scaling factor for elevation function, which is itself
-                     scaled from 0 to 1.
-    :type kincline: float
-    :param kcrossing: scaling factor for cost of crossing the street.
-    :type kcrossing: float
     :param incline_min: Maximum downhill incline indicated by the user, e.g.
                         -0.1 for 10% downhill.
     :type incline_min: float
@@ -131,6 +41,8 @@ def cost_fun_generator(kdist=0.1, kincline=0.8, kcrossing=0.1,
 
     '''
     # piecewise = piecewise_generator(INCLINE_MIN, INCLINE_IDEAL, INCLINE_MAX)
+    k_up = find_k(incline_max, INCLINE_IDEAL, DIVISOR)
+    k_down = find_k(incline_min, INCLINE_IDEAL, DIVISOR)
 
     def cost_fun(u, v, d):
         '''Networkx dijkstra-format cost function. Networkx provides access to
@@ -173,7 +85,12 @@ def cost_fun_generator(kdist=0.1, kincline=0.8, kcrossing=0.1,
             return math.inf
         if incline < incline_min:
             return math.inf
-        speed = tobler(incline)
+
+        # Speed based on incline
+        if incline > INCLINE_IDEAL:
+            speed = tobler(incline, k=k_up, m=INCLINE_IDEAL, base=base_speed)
+        else:
+            speed = tobler(incline, k=k_down, m=INCLINE_IDEAL, base=base_speed)
 
         # Initial time estimate (in seconds) - based on speed
         time = d['length'] / speed
