@@ -79,10 +79,11 @@ def dijkstra(origin, destination, cost_fun_gen=costs.cost_fun_generator,
             }]
 
         '''
+
+        closest = utils.sindex_lonlat_nearest(point.x, point.y, 100, sindex, G)
+
         # FIXME: this does not actually find the closest geometry, just the
         # closest sindex entry. We need a proper, in-meters, 'closest' function
-        query = sindex.nearest(point.bounds, 1, objects=True)
-        closest = [q.object for q in query][0]
         if closest['type'] == 'node':
             # It's a node! Easy-peasy
             results = [{
@@ -97,23 +98,19 @@ def dijkstra(origin, destination, cost_fun_gen=costs.cost_fun_generator,
             edge = G[u][v]
             edge_u = copy.deepcopy(edge)
             edge_v = copy.deepcopy(edge)
+
             # the graph is undirected, so we need to re-extract u and v from
             # the edge to maintain their correspondence
             # TODO: Use a DiGraph? Doubles graph size...
             u = edge['from']
             v = edge['to']
 
-            # 2. Recalculate the length, cut the geometry
-            fraction_along = edge['geometry'].project(point, normalized=True)
-            distance = edge['geometry'].length * fraction_along
-            geom_u, geom_v = utils.cut(edge['geometry'], distance)
+            # 2. Save the new geometries and lengths
+            edge_u['geometry'] = closest['geometry_u']
+            edge_v['geometry'] = closest['geometry_v']
 
-            # 3. Save the new geometries and lengths
-            edge_u['geometry'] = geom_u
-            edge_v['geometry'] = geom_v
-
-            edge_u['length'] = fraction_along * edge['length']
-            edge_v['length'] = (1.0 - fraction_along) * edge['length']
+            edge_u['length'] = closest['length_u']
+            edge_v['length'] = closest['length_v']
 
             edge_u['to'] = -1
             edge_v['from'] = -1
