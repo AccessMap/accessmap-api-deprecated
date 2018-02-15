@@ -81,6 +81,12 @@ def dijkstra(origin, destination, cost_fun_gen=costs.cost_fun_generator,
         '''
 
         closest = utils.sindex_lonlat_nearest(point.x, point.y, 100, sindex, G)
+        if closest is None:
+            return {
+                'code': 'TooFarAway',
+                'waypoints': [],
+                'routes': []
+            }
 
         # FIXME: this does not actually find the closest geometry, just the
         # closest sindex entry. We need a proper, in-meters, 'closest' function

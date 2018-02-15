@@ -96,6 +96,9 @@ def sindex_lonlat_nearest(lon, lat, meters, sindex, G):
             # endpoint.
             pass
 
+    if not features:
+        return None
+
     features = gpd.GeoDataFrame(features)
     features.crs = {'init': 'epsg:4326'}
 
