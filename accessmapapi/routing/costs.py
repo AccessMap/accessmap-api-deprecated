@@ -68,13 +68,14 @@ def cost_fun_generator(base_speed=WALK_BASE, incline_min=-0.1,
         path_type = d['path_type']
 
         # Initial speed based on incline
+        # NOTE: Inclines were initially multiplied by 1000 to save on filesize
         if path_type == 'sidewalk':
             if (d['from'] == u) or (d['to'] == v):
                 # Going in same direction as the geometry
-                incline = d['incline']
+                incline = d['incline'] / 1000.
             else:
                 # Going in opposite direction as the geometry
-                incline = -1 * d['incline']
+                incline = -1 * d['incline'] / 1000.
 
             # incline_cost = piecewise(-1.0 * d['incline'])
         else:
