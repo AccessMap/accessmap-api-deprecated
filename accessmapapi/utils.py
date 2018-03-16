@@ -106,9 +106,7 @@ def sindex_lonlat_nearest(lon, lat, meters, sindex, G):
 
     # Project to UTM (based on centerpoint) for pretty good nearest neighbor
     # calculation
-    utm_zone_epsg = 32700 - 100 * round((45 + lat) / 90.) + \
-        round((183 + lon) / 6.)
-
+    utm_zone_epsg = lonlat_to_utm_epsg(lon, lat)
     features_utm = features.to_crs({'init': 'epsg:{}'.format(utm_zone_epsg)})
     wgs84 = pyproj.Proj(init='epsg:4326')
     utm = pyproj.Proj(init='epsg:{}'.format(utm_zone_epsg))
@@ -156,3 +154,9 @@ def sindex_lonlat_nearest(lon, lat, meters, sindex, G):
             'geometry_v': geom_v_wgs84,
             'length_v': length_v,
         }
+
+
+def lonlat_to_utm_epsg(lon, lat):
+    utm_zone_epsg = 32700 - 100 * round((45 + lat) / 90.) + \
+        round((183 + lon) / 6.)
+    return utm_zone_epsg

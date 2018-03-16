@@ -2,8 +2,10 @@ import copy
 import geojson
 import math
 import networkx as nx
+import pyproj
+from shapely import ops
 from shapely.geometry import mapping
-from accessmapapi import app, utils
+from accessmapapi import app, graph, utils
 from . import costs
 
 
@@ -35,6 +37,19 @@ def dijkstra(origin, destination, cost_fun_gen=costs.cost_fun_generator,
     # 3. Route from every start to every end.
     # 4. Pick the lowest-cost route, return its data according to the spec
     #    used by Mapbox.
+    '''
+    NOTE: Picking the 'closest' edge or node is not enough: we should make
+    some kind of educated guess based on the environment they'd have to
+    traverse. Eventually, this would mean finding a building exit (or several),
+    but for now, we can do things like avoid crossing any footpaths.
+
+    So, new strategy: iterate over 'nearest' paths/nodes until one of the
+    following conditions is met:
+
+    1. We've reached a maximum distance metric (e.g all within 100 meters)
+    2. We've found a path we can reach without intersection any other paths.
+
+    '''
     G = app.config.get('G', None)
     sindex = app.config.get('sindex', None)
     if (G is None) or (sindex is None):
@@ -80,9 +95,62 @@ def dijkstra(origin, destination, cost_fun_gen=costs.cost_fun_generator,
 
         '''
 
-        closest = utils.sindex_lonlat_nearest(point.x, point.y, 100, sindex, G)
+        def valid_filter(edge):
+            return cost_fun(1, 2, edge) != math.inf
+
+        closest = graph.query.closest_nonintersecting_edge(G, sindex, point.x,
+                                                           point.y, 100,
+                                                           filter=valid_filter)
+
         if closest is None:
             return None
+
+        # Closest point on that feature
+        utm_zone_epsg = utils.lonlat_to_utm_epsg(point.x, point.y)
+        wgs84 = pyproj.Proj(init='epsg:4326')
+        utm = pyproj.Proj(init='epsg:{}'.format(utm_zone_epsg))
+
+        def proj_wgs84(x, y):
+            return pyproj.transform(utm, wgs84, x, y)
+
+        def proj_utm(x, y):
+            return pyproj.transform(wgs84, utm, x, y)
+
+        center_utm = ops.transform(proj_utm, point)
+        geom_utm = ops.transform(proj_utm, closest['geometry'])
+        distance_along = geom_utm.project(center_utm)
+
+        # Decide whether to return the edge of point
+        if distance_along < 0.1:
+            # We should use the 'start' node
+            closest = {
+                'type': 'node',
+                'lookup': closest['from']
+            }
+        elif (geom_utm.length - distance_along) < 0.1:
+            # We should use the 'end' node
+            closest = {
+                'type': 'node',
+                'lookup': closest['to']
+            }
+        else:
+            # We should use the edge.
+            fraction_along = geom_utm.project(center_utm, normalized=True)
+            distance = geom_utm.length * fraction_along
+            geom_u, geom_v = utils.cut(geom_utm, distance)
+            length_u = geom_u.length
+            length_v = geom_v.length
+            geom_u_wgs84 = ops.transform(proj_wgs84, geom_u)
+            geom_v_wgs84 = ops.transform(proj_wgs84, geom_v)
+
+            closest = {
+                'type': 'edge',
+                'lookup': [closest['from'], closest['to']],
+                'geometry_u': geom_u_wgs84,
+                'length_u': length_u,
+                'geometry_v': geom_v_wgs84,
+                'length_v': length_v,
+            }
 
         # FIXME: this does not actually find the closest geometry, just the
         # closest sindex entry. We need a proper, in-meters, 'closest' function
