@@ -10,7 +10,7 @@ from . import costs
 
 
 def dijkstra(origin, destination, cost_fun_gen=costs.cost_fun_generator,
-             cost_kwargs=None):
+             cost_kwargs=None, only_valid=True):
     '''Process a routing request, returning a Mapbox-compatible routing JSON
     object.
 
@@ -95,8 +95,13 @@ def dijkstra(origin, destination, cost_fun_gen=costs.cost_fun_generator,
 
         '''
 
-        def valid_filter(edge):
+        def is_valid(edge):
             return cost_fun(1, 2, edge) != math.inf
+
+        if only_valid:
+            valid_filter = is_valid
+        else:
+            valid_filter = None
 
         closest = graph.query.closest_nonintersecting_edge(G, sindex, point.x,
                                                            point.y, 100,
