@@ -46,8 +46,8 @@ def create_app():
         while True:
             failed = False
             try:
-                network_handlers.get_sidewalks(app)
-                network_handlers.get_crossings(app)
+                for layer in ['sidewalks', 'crossings', 'elevator_paths']:
+                    network_handlers.get_pbf(app, layer)
             except:
                 failed = True
 

@@ -6,7 +6,7 @@ from shapely.geometry import Point
 from accessmapapi.utils import haversine
 
 
-def make_network(sidewalks, crossings):
+def make_network(sidewalks, crossings, elevator_paths):
     '''Create a network given sidewalk and crossing data. Expectation is that
     the data is already 'noded', i.e. that all lines that should be connected
     roughly end-to-end.
@@ -15,6 +15,8 @@ def make_network(sidewalks, crossings):
     :type sidewalks: geopandas.GeoDataFrame
     :param crossings: Crossings dataset
     :type crossings: geopandas.GeoDataFrame
+    :param elevator_paths: Elevator paths dataset
+    :type elevator_paths: geopandas.GeoDataFrame
 
     '''
     # Precision for rounding, in latlon degrees.
@@ -23,16 +25,18 @@ def make_network(sidewalks, crossings):
     # We'll also create a spatial index so we can look up nodes/edges quickly!
     def graph_from_gdf(gdf, path_type):
         gdf['length'] = gdf.geometry.apply(lambda x: haversine(x.coords))
-        sidewalk_attrs = ['geometry', 'layer', 'length', 'incline']
-        crossing_attrs = ['geometry', 'layer', 'length', 'incline',
-                          'curbramps', 'marked']
+
         if path_type == 'sidewalk':
-            attrs = sidewalk_attrs
+            attrs = ['geometry', 'layer', 'length', 'incline']
         elif path_type == 'crossing':
-            attrs = crossing_attrs
+            attrs = ['geometry', 'layer', 'length', 'incline', 'curbramps',
+                     'marked']
+        elif path_type == 'elevator_path':
+            attrs = ['geometry', 'indoor', 'layer', 'opening_hours', 'via']
         else:
             raise ValueError('Only the `sidewalk` and `crossing` path ' +
                              'types are allowed')
+
         G = nx.Graph()
         for idx, row in gdf.iterrows():
             geometry = row['geometry']
@@ -63,8 +67,9 @@ def make_network(sidewalks, crossings):
 
     G_sw = graph_from_gdf(sidewalks, 'sidewalk')
     G_cr = graph_from_gdf(crossings, 'crossing')
+    G_el = graph_from_gdf(elevator_paths, 'elevator_path')
 
-    G = nx.compose(G_sw, G_cr)
+    G = nx.compose(G_sw, G_cr, G_el)
     G
 
     return G

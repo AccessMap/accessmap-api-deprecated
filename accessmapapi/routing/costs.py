@@ -88,7 +88,9 @@ def cost_fun_generator(base_speed=WALK_BASE, incline_min=-0.1,
             return math.inf
 
         # Speed based on incline
-        if incline > INCLINE_IDEAL:
+        if not incline:
+            speed = base_speed
+        elif incline > INCLINE_IDEAL:
             speed = tobler(incline, k=k_up, m=INCLINE_IDEAL, base=base_speed)
         else:
             speed = tobler(incline, k=k_down, m=INCLINE_IDEAL, base=base_speed)

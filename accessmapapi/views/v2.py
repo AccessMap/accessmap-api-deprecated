@@ -49,6 +49,28 @@ def crossingsv2():
     return jsonify(fc)
 
 
+@app.route('/v2/elevator_paths.geojson')
+def elevator_pathsv2():
+    # TODO: return proper codes and messages when bad inputs are given
+    bbox = request.args.get('bbox')
+    all_rows = request.args.get('all')
+
+    gdf = g['elevator_paths']
+
+    if all_rows == 'true':
+        fc = gdf_to_fc(gdf)
+    else:
+        if not bbox:
+            fc = gdf_to_fc(gdf.iloc[:10])
+        else:
+            bounds = [float(b) for b in bbox.split(',')]
+            query = gdf.sindex.intersects(bounds, objects=True)
+            in_bounds = gdf.loc[[q.index for q in query]]
+            fc = gdf_to_fc(in_bounds)
+
+    return jsonify(fc)
+
+
 @app.route('/v2/route.json', methods=['GET'])
 def routev2():
     # Test coordinates:
