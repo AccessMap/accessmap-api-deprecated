@@ -6,7 +6,8 @@ geobuf==1.1.1
 geojson==1.3.2
 geopandas==0.3.0
 gunicorn==19.7.1
-itsdangerous==0.24
-networkx==2.0
 -e git+https://github.com/nbolten/humanized_opening_hours@5baf021f5387775ae39c29e8e225b738ffd487e9#egg=humanized_opening_hours
+itsdangerous==0.24
+pytz==2017.3
+networkx==2.0
 rtree==0.8.3
