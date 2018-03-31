@@ -10,6 +10,8 @@ RUN apt-get update && \
 RUN mkdir -p /www
 WORKDIR /www
 
+RUN pip3 install --upgrade pip
+
 COPY requirements.txt .
 RUN pip3 install -r requirements.txt
 

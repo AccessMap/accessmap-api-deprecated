@@ -32,7 +32,8 @@ def make_network(sidewalks, crossings, elevator_paths):
             attrs = ['geometry', 'layer', 'length', 'incline', 'curbramps',
                      'marked']
         elif path_type == 'elevator_path':
-            attrs = ['geometry', 'indoor', 'layer', 'opening_hours', 'via']
+            attrs = ['geometry', 'indoor', 'layer', 'length', 'opening_hours',
+                     'via']
         else:
             raise ValueError('Only the `sidewalk` and `crossing` path ' +
                              'types are allowed')
@@ -69,8 +70,7 @@ def make_network(sidewalks, crossings, elevator_paths):
     G_cr = graph_from_gdf(crossings, 'crossing')
     G_el = graph_from_gdf(elevator_paths, 'elevator_path')
 
-    G = nx.compose(G_sw, G_cr, G_el)
-    G
+    G = nx.compose_all([G_sw, G_cr, G_el])
 
     return G
 

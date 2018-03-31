@@ -1,5 +1,8 @@
 '''Defines cost function generators for optimal path finding in networkx.'''
+from datetime import datetime
 import math
+import humanized_opening_hours as hoh
+import pytz
 
 # Default base moving speeds for different modes. All in m/s.
 WALK_BASE = 10. / 6  # Tobler's hiking function for hikers
@@ -27,7 +30,7 @@ def tobler(grade, k=3.5, m=INCLINE_IDEAL, base=WALK_BASE):
 
 
 def cost_fun_generator(base_speed=WALK_BASE, incline_min=-0.1,
-                       incline_max=0.085, avoid_curbs=True):
+                       incline_max=0.085, avoid_curbs=True, timestamp=None):
     '''Calculates a cost-to-travel that balances distance vs. steepness vs.
     needing to cross the street.
 
@@ -43,6 +46,11 @@ def cost_fun_generator(base_speed=WALK_BASE, incline_min=-0.1,
     # piecewise = piecewise_generator(INCLINE_MIN, INCLINE_IDEAL, INCLINE_MAX)
     k_up = find_k(incline_max, INCLINE_IDEAL, DIVISOR)
     k_down = find_k(incline_min, INCLINE_IDEAL, DIVISOR)
+
+    if timestamp is None:
+        date = datetime.now(pytz.timezone('US/Pacific'))
+    else:
+        date = datetime.fromtimestamp(timestamp, pytz.timezone('US/Pacific'))
 
     def cost_fun(u, v, d):
         '''Networkx dijkstra-format cost function. Networkx provides access to
@@ -81,6 +89,17 @@ def cost_fun_generator(base_speed=WALK_BASE, incline_min=-0.1,
         else:
             # Assume all other paths are flat
             incline = 0
+
+        if 'opening_hours' in d:
+            # There might be a time restriction
+            # TODO: this should be validated during graph creation/update
+            try:
+                oh = hoh.OHParser(d['opening_hours'])
+                if not oh.is_open(date):
+                    return math.inf
+            except:
+                # Failed to parse or something: don't use this path
+                return math.inf
 
         if incline > incline_max:
             return math.inf

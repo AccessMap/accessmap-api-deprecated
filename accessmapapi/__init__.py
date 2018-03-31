@@ -47,7 +47,7 @@ def create_app():
             failed = False
             try:
                 for layer in ['sidewalks', 'crossings', 'elevator_paths']:
-                    network_handlers.get_pbf(app, layer)
+                    network_handlers.get_geobuf(app, layer)
             except:
                 failed = True
 

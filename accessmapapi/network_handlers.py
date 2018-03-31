@@ -6,7 +6,7 @@ import rtree
 from accessmapapi import network
 
 
-def get_pbf(app, layer_name):
+def get_geobuf(app, layer_name):
     layer = app.config.get(layer_name, None)
     if layer is not None:
         return layer
@@ -14,7 +14,7 @@ def get_pbf(app, layer_name):
     app.logger.info('Reading {} from data directory...'.format(layer_name))
     datadir = app.config['PEDDATADIR']
 
-    with open(os.path.join(datadir, '{}.pbf'.format(layer_name)), 'rb') as f:
+    with open(os.path.join(datadir, '{}.geobuf'.format(layer_name)), 'rb') as f:
         pbf = f.read()
         layer = geobuf.decode(pbf)
 
@@ -23,44 +23,6 @@ def get_pbf(app, layer_name):
     app.config[layer_name] = df
 
     return df
-
-
-def get_sidewalks(app):
-    sidewalks = app.config.get('sidewalks', None)
-    if sidewalks is not None:
-        return sidewalks
-
-    app.logger.info('Reading sidewalks from data directory...')
-    datadir = app.config['PEDDATADIR']
-
-    with open(os.path.join(datadir, 'sidewalks.pbf'), 'rb') as f:
-        pbf = f.read()
-        sidewalks = geobuf.decode(pbf)
-
-    sidewalks = gpd.GeoDataFrame.from_features(sidewalks['features'])
-
-    app.config['sidewalks'] = sidewalks
-
-    return sidewalks
-
-
-def get_crossings(app):
-    crossings = app.config.get('crossings', None)
-    if crossings is not None:
-        return crossings
-
-    app.logger.info('Reading crossings from data directory...')
-    datadir = app.config['PEDDATADIR']
-
-    with open(os.path.join(datadir, 'crossings.pbf'), 'rb') as f:
-        pbf = f.read()
-        crossings = geobuf.decode(pbf)
-
-    crossings = gpd.GeoDataFrame.from_features(crossings['features'])
-
-    app.config['crossings'] = crossings
-
-    return crossings
 
 
 def get_G(app):
@@ -73,9 +35,9 @@ def get_G(app):
 
     app.logger.info('Graph or spatial index have not been loaded.')
 
-    sidewalks = get_pbf(app, 'sidewalks')
-    crossings = get_pbf(app, 'crossings')
-    elevator_paths = get_pbf(app, 'elevator_paths')
+    sidewalks = get_geobuf(app, 'sidewalks')
+    crossings = get_geobuf(app, 'crossings')
+    elevator_paths = get_geobuf(app, 'elevator_paths')
 
     datadir = app.config['PEDDATADIR']
     graph_path = os.path.join(datadir, 'graph.txt')
