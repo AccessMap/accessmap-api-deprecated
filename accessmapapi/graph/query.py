@@ -1,7 +1,10 @@
 '''Queries on the routing graph - generall geospatial.'''
+import copy
 import geopandas as gpd
+import math
+import pyproj
 from shapely.geometry import LineString, Point
-from accessmapapi.utils import bbox_from_center, lonlat_to_utm_epsg
+from accessmapapi.utils import bbox_from_center, lonlat_to_utm_epsg, cut
 
 
 def dwithin(G, sindex, lon, lat, distance):
@@ -31,7 +34,6 @@ def dwithin(G, sindex, lon, lat, distance):
     '''
     bbox = bbox_from_center(lon, lat, distance)
     query = sindex.intersection(bbox, objects=True)
-    utm_code = lonlat_to_utm_epsg(lon, lat)
 
     rows = []
     for q in query:
@@ -46,49 +48,108 @@ def dwithin(G, sindex, lon, lat, distance):
 
         rows.append(o)
 
+    utm_zone = lonlat_to_utm_epsg(lon, lat)
+    wgs84 = pyproj.Proj(init='epsg:4326')
+    utm = pyproj.Proj(init='epsg:{}'.format(utm_zone))
+
     gdf = gpd.GeoDataFrame(rows)
     gdf.crs = {'init': 'epsg:4326'}
-    gdf_utm = gdf.to_crs({'init': 'epsg:{}'.format(utm_code)})
+    gdf_utm = gdf.to_crs({'init': 'epsg:{}'.format(utm_zone)})
 
-    point = Point([lon, lat])
-    points = gpd.GeoSeries([point])
-    points.crs = {'init': 'epsg:4326'}
-    points_utm = points.to_crs({'init': 'epsg:{}'.format(utm_code)})
-    point_utm = points_utm.iloc[0]
+    point_utm = Point(pyproj.transform(wgs84, utm, lon, lat))
 
     gdf_utm['distance'] = gdf_utm.distance(point_utm)
-
     gdf_utm = gdf_utm[gdf_utm['distance'] < distance]
-
     gdf_utm = gdf_utm.sort_values('distance')
 
     return gdf_utm
 
 
-def closest_nonintersecting_edge(G, sindex, lon, lat, distance, filter=None):
-    point = Point([lon, lat])
-    utm_code = lonlat_to_utm_epsg(lon, lat)
-    points = gpd.GeoSeries([point])
-    points.crs = {'init': 'epsg:4326'}
-    points_utm = points.to_crs({'init': 'epsg:{}'.format(utm_code)})
-    point_utm = points_utm.iloc[0]
+def closest_valid_startpoints(G, sindex, lon, lat, distance, cost_fun,
+                              dest=False):
+    utm_zone = lonlat_to_utm_epsg(lon, lat)
+    wgs84 = pyproj.Proj(init='epsg:4326')
+    utm = pyproj.Proj(init='epsg:{}'.format(utm_zone))
+    point_utm = Point(pyproj.transform(wgs84, utm, lon, lat))
 
     gdf_sorted = dwithin(G, sindex, lon, lat, distance)
 
     for idx, row in gdf_sorted.iterrows():
         if row['type'] == 'edge':
-            u, v = row['lookup']
-            edge = G[u][v]
-            if filter is not None:
-                if not filter(edge):
-                    continue
-
-            geom = row.geometry
-            point2 = geom.interpolate(geom.project(point_utm))
+            # Check for intersection
+            distance_along = row.geometry.project(point_utm)
+            point2 = row.geometry.interpolate(distance_along)
             line = LineString([point_utm, point2])
             if gdf_sorted[gdf_sorted.index != idx].intersects(line).any():
                 continue
 
-            return edge
+            # Check cost function against potential edge(s)
+            # Note: this is done twice - pass result?
+            ru, rv = row['lookup']
+            row_edge = G[ru][rv]
+
+            if distance_along < 0.1:
+                # We're at an endpoint. Enumerate and evaluate edges
+                u = row_edge['from']
+                for v, edge in G[u].items():
+                    cost = cost_fun(u, v, edge)
+                    if cost != math.inf:
+                        x, y = point2.coords[0]
+                        p = Point(pyproj.transform(utm, wgs84, x, y))
+                        return [{
+                            'node': u,
+                            'initial_cost': 0,
+                            'point': p
+                        }]
+            elif (row.geometry.length - distance_along) < 0.1:
+                # We're at an endpoint. Enumerate and evaluate edges
+                u = row_edge['to']
+                for v, edge in G[u].items():
+                    cost = cost_fun(u, v, edge)
+                    if cost != math.inf:
+                        x, y = point2.coords[0]
+                        p = Point(pyproj.transform(utm, wgs84, x, y))
+                        return [{
+                            'node': u,
+                            'initial_cost': 0,
+                            'point': p
+                        }]
+            else:
+                # We're along the edge. Split and evaluate 2 new edges.
+                u = -1
+                new_edges = cut(row.geometry, distance_along)
+                v1 = row_edge['from']
+                v2 = row_edge['to']
+                results = []
+                for i, (geom, v) in enumerate(zip(new_edges, [v1, v2])):
+                    edge = copy.deepcopy(row_edge)
+                    if (dest and i == 1) or (not dest and i == 0):
+                        # Initial route is in reverse direction from edge
+                        coords = list(reversed(geom.coords))
+                        geom.coords = coords
+                        if 'incline' in edge:
+                            edge['incline'] = -1.0 * edge['incline']
+
+                    edge['geometry'] = geom
+
+                    if dest:
+                        cost = cost_fun(v, u, edge)
+                    else:
+                        cost = cost_fun(u, v, edge)
+                    if cost != math.inf:
+                        x, y = point2.coords[0]
+                        p = Point(pyproj.transform(utm, wgs84, x, y))
+                        g2 = LineString([pyproj.transform(utm, wgs84, x, y)
+                                         for x, y in geom.coords])
+                        edge['geometry'] = g2
+
+                        results.append({
+                            'node': v,
+                            'initial_cost': cost,
+                            'initial_edge': edge,
+                            'point': p
+                        })
+                if results:
+                    return results
 
     return None
