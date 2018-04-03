@@ -5,7 +5,7 @@ import humanized_opening_hours as hoh
 import pytz
 
 # Default base moving speeds for different modes. All in m/s.
-WALK_BASE = 10. / 6  # Tobler's hiking function for hikers
+WALK_BASE = 1.3  # Slightly lower than average walking speed
 WHEELCHAIR_BASE = 0.6  # Rough estimate
 POWERED_BASE = 2  # Roughly 5 mph
 
@@ -14,10 +14,6 @@ DIVISOR = 5
 
 # 'fastest' incline. -0.0087 is straight from Tobler's hiking function
 INCLINE_IDEAL = -0.0087
-
-# TODO: Minimum base speeds for wheelchairs - derive from torque etc and
-# safety, use to determine aggressiveness of cost function. Parameterize from
-# client somehow.
 
 
 def find_k(g, m, n):
@@ -43,7 +39,6 @@ def cost_fun_generator(base_speed=WALK_BASE, incline_min=-0.1,
     :type avoid_curbs: bool
 
     '''
-    # piecewise = piecewise_generator(INCLINE_MIN, INCLINE_IDEAL, INCLINE_MAX)
     k_up = find_k(incline_max, INCLINE_IDEAL, DIVISOR)
     k_down = find_k(incline_min, INCLINE_IDEAL, DIVISOR)
 
@@ -117,10 +112,14 @@ def cost_fun_generator(base_speed=WALK_BASE, incline_min=-0.1,
         # Initial time estimate (in seconds) - based on speed
         time = d['length'] / speed
 
-        # Crossings imply a delay. Would be good to make this driven by data,
-        # but can guess for now
         if path_type == 'crossing':
+            # Crossings imply a delay. Would be good to make this driven by
+            # data, but can guess for now
             time += 30
+        elif path_type == 'elevator_path':
+            # Include a delay for using the elevator - takes time to enter/exit
+            # a building and wait for + use the elevator
+            time += 45
 
         # Curb cost
         if avoid_curbs:

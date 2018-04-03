@@ -382,6 +382,7 @@ def dijkstra(origin, destination, cost_fun_gen=costs.cost_fun_generator,
     # TODO: Add steps!
     route['steps'] = []
     route['summary'] = ''
+    route['duration'] = best_path['total_cost']
     route['total_cost'] = best_path['total_cost']
 
     routes.append(route)

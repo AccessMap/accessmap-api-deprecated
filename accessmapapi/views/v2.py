@@ -86,7 +86,7 @@ def routev2():
         })
 
     # request route
-    params = ['avoid', 'incline_min', 'incline_max', 'timestamp']
+    params = ['avoid', 'incline_min', 'incline_max', 'speed', 'timestamp']
     cost_params = {
         'avoid_curbs': False
     }
@@ -104,7 +104,7 @@ def routev2():
                 cost_params['incline_max'] = float(value)
             elif param == 'incline_min':
                 cost_params['incline_min'] = float(value)
-            elif param == 'base_speed':
+            elif param == 'speed':
                 cost_params['base_speed'] = float(value)
             elif param == 'timestamp':
                 cost_params['timestamp'] = float(value) / 1000.0
