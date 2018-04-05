@@ -8,6 +8,10 @@ venv
 # Mac desktop service store files
 .DS_Store
 
+# Logs
+*.log
+*.lprof
+
 # Environment variable setter
 set_envs.sh
 

@@ -1,4 +1,4 @@
-from accessmapapi import app
+from accessmapapi.app import app
 from accessmapapi.routing import costs, route, travelcost
 from flask import g, jsonify, request
 import geojson
@@ -115,7 +115,26 @@ def routev2():
     origin = Point(reversed(origin_coords))
     destination = Point(reversed(destination_coords))
 
-    route_response = route.dijkstra(origin, destination,
+    G = app.config.get('G', None)
+    sindex = app.config.get('sindex', None)
+
+    if (G is None) or (sindex is None):
+        if G is None:
+            app.logger.warn('Got request for routing, but the graph does ' +
+                            'not exist yet.')
+            code = 'GraphNotReady'
+        elif sindex is None:
+            app.logger.warn('Got request for routing, but the spatial index ' +
+                            'does not exist yet.')
+            code = 'SpatialIndexNotReady'
+
+        return {
+            'code': code,
+            'waypoints': [],
+            'routes': []
+        }
+
+    route_response = route.dijkstra(origin, destination, G, sindex,
                                     cost_fun_gen=costs.cost_fun_generator,
                                     cost_kwargs=cost_params)
 

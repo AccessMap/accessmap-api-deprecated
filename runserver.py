@@ -3,7 +3,7 @@ This script runs the accessmapapi application using a development server.
 """
 
 import os
-from accessmapapi import app
+from accessmapapi.app import app
 
 if __name__ == '__main__':
     os.putenv('LANG', 'en_US.UTF-8')

@@ -2,30 +2,44 @@ import geobuf
 import geopandas as gpd
 import os
 import pickle
-import rtree
+import rtree  # noqa
 from accessmapapi import network
 
 
-def get_geobuf(app, layer_name):
+def get_geobuf(path):
+    with open(path, 'rb') as f:
+        pbf = f.read()
+        layer = geobuf.decode(pbf)
+        df = gpd.GeoDataFrame.from_features(layer['features'])
+
+    return df
+
+
+def get_geobuf_cached(layer_name, app):
     layer = app.config.get(layer_name, None)
     if layer is not None:
         return layer
 
     app.logger.info('Reading {} from data directory...'.format(layer_name))
-    datadir = app.config['PEDDATADIR']
-
-    with open(os.path.join(datadir, '{}.geobuf'.format(layer_name)), 'rb') as f:
-        pbf = f.read()
-        layer = geobuf.decode(pbf)
-
-    df = gpd.GeoDataFrame.from_features(layer['features'])
-
+    df = get_geobuf(os.path.join(app.config['PEDDATADIR'],
+                                 '{}.geobuf'.format(layer_name)))
     app.config[layer_name] = df
 
     return df
 
 
-def get_G(app):
+def build_G(sidewalks, crossings, elevator_paths, graph_path):
+    # Create graph
+    G = network.make_network(sidewalks, crossings, elevator_paths)
+
+    # Serialize to file for posterity
+    with open(os.path.join(graph_path), 'wb') as f:
+        pickle.dump(G, f)
+
+    return G
+
+
+def build_G_cached(app):
     # TODO: separate out spatial index from graph creation process to make
     # this simpler?
     G = app.config.get('G', None)
@@ -34,11 +48,6 @@ def get_G(app):
         return G
 
     app.logger.info('Graph or spatial index have not been loaded.')
-
-    sidewalks = get_geobuf(app, 'sidewalks')
-    crossings = get_geobuf(app, 'crossings')
-    elevator_paths = get_geobuf(app, 'elevator_paths')
-
     datadir = app.config['PEDDATADIR']
     graph_path = os.path.join(datadir, 'graph.txt')
 
@@ -48,23 +57,7 @@ def get_G(app):
     # 3. If the spatial index was successfully read, attempt to read the graph.
     # 4. If the graph can't be read, try to create it.
 
-    def make_graph():
-        # Create graph
-        app.logger.info('Creating new graph. This may take a few minutes...')
-
-        G = network.make_network(sidewalks, crossings, elevator_paths)
-
-        # Serialize to file for posterity
-        with open(os.path.join(datadir, 'graph.txt'), 'wb') as f:
-            pickle.dump(G, f)
-
-        app.config['G'] = G
-
-        app.logger.info('Graph created.')
-
-        return G
-
-    # Attempt to read it in.
+    # Attempt to read existing graph.
     if os.path.exists(graph_path):
         app.logger.info('Reading graph...')
         try:
@@ -80,13 +73,24 @@ def get_G(app):
     else:
         app.logger.info('No graph file found.')
 
+    app.logger.info('Creating new graph. This may take a few minutes...')
+
+    sidewalks = get_geobuf_cached('sidewalks', app)
+    crossings = get_geobuf_cached('crossings', app)
+    elevator_paths = get_geobuf_cached('elevator_paths', app)
+    G = build_G(sidewalks, crossings, elevator_paths, graph_path)
+
+    app.logger.info('Graph created.')
     app.config['G'] = G
-    G = make_graph()
 
     return G
 
 
-def get_sindex(app):
+def build_sindex(G):
+    return network.make_sindex(G)
+
+
+def build_sindex_cached(app):
     # Check if it's already in-memory
     sindex = app.config.get('sindex', None)
 
@@ -98,8 +102,8 @@ def get_sindex(app):
     # spatialite
     app.logger.info('Creating spatial index...')
 
-    G = get_G(app)
-    sindex = network.make_sindex(G)
+    G = build_G_cached(app)
+    sindex = build_sindex(G)
     app.config['sindex'] = sindex
 
     app.logger.info('Spatial index created.')

@@ -3,13 +3,13 @@ import geojson
 import math
 import networkx as nx
 from shapely.geometry import mapping
-from accessmapapi import app
 from accessmapapi.graph import query
 from . import costs
 
 
-def dijkstra(origin, destination, cost_fun_gen=costs.cost_fun_generator,
-             cost_kwargs=None, only_valid=True):
+def dijkstra(origin, destination, G, sindex,
+             cost_fun_gen=costs.cost_fun_generator, cost_kwargs=None,
+             only_valid=True):
     '''Process a routing request, returning a Mapbox-compatible routing JSON
     object.
 
@@ -24,25 +24,6 @@ def dijkstra(origin, destination, cost_fun_gen=costs.cost_fun_generator,
     :type cost_kwargs: dict
 
     '''
-    # Retrieve the graph / return useful messages if it's not available
-    G = app.config.get('G', None)
-    sindex = app.config.get('sindex', None)
-    if (G is None) or (sindex is None):
-        if G is None:
-            app.logger.warn('Got request for routing, but the graph does ' +
-                            'not exist yet.')
-            code = 'GraphNotReady'
-        elif sindex is None:
-            app.logger.warn('Got request for routing, but the spatial index ' +
-                            'does not exist yet.')
-            code = 'SpatialIndexNotReady'
-
-        return {
-            'code': code,
-            'waypoints': [],
-            'routes': []
-        }
-
     # Query the start and end points for viable features
     cost_fun = costs.cost_fun_generator(**cost_kwargs)
     origins = query.closest_valid_startpoints(G, sindex, origin.x, origin.y,
