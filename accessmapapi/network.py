@@ -26,7 +26,8 @@ def make_network(sidewalks, crossings, elevator_paths):
         gdf['length'] = gdf.geometry.apply(lambda x: haversine(x.coords))
 
         if path_type == 'sidewalk':
-            attrs = ['geometry', 'layer', 'length', 'incline']
+            attrs = ['geometry', 'layer', 'length', 'incline', 'side',
+                     'street_name']
         elif path_type == 'crossing':
             attrs = ['geometry', 'layer', 'length', 'incline', 'curbramps',
                      'marked']
