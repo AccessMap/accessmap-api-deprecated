@@ -46,8 +46,9 @@ def make_network(sidewalks, crossings, elevator_paths):
         def process_row(row):
             geometry = row['geometry']
 
-            start = list(np.round(geometry.coords[0], PRECISION))
-            end = list(np.round(geometry.coords[-1], PRECISION))
+            coords = list(geometry.coords)
+            start = list(np.round(coords[0], PRECISION))
+            end = list(np.round(coords[-1], PRECISION))
 
             start_node = str(start)
             end_node = str(end)
@@ -61,12 +62,12 @@ def make_network(sidewalks, crossings, elevator_paths):
             # Add edge
             # retain original order in which geometry was added - necessary to
             # do costing based on directional attributes.
-            row_attrs = dict(row)
+            row_attrs = row.to_dict()
             row_attrs['from'] = start_node
             row_attrs['to'] = end_node
+            row_attrs['path_type'] = path_type
 
-            G.add_edge(start_node, end_node, path_type=path_type,
-                       **row_attrs)
+            G.add_edge(start_node, end_node, attr_dict=row_attrs)
 
         gdf.apply(process_row, axis=1)
 
