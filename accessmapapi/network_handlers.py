@@ -113,8 +113,8 @@ def build_sindex_cached(app):
         try:
             with open(sindex_path, 'rb') as f:
                 sindex_list = pickle.load(f)
-                app.logger.info('Spatial index read.')
                 sindex = rtree.index.Index(sindex_list)
+                app.logger.info('Spatial index read.')
 
                 app.config['sindex'] = sindex
 
