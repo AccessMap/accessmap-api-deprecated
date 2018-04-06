@@ -38,10 +38,13 @@ def make_network(sidewalks, crossings, elevator_paths):
             raise ValueError('Only the `sidewalk` and `crossing` path ' +
                              'types are allowed')
 
+        gdf = gdf[gdf.columns & attrs]
         G = nx.Graph()
-        for idx, row in gdf.iterrows():
+
+        # for idx, row in gdf.iterrows():
+        @profile
+        def process_row(row):
             geometry = row['geometry']
-            row_attrs = dict(row[row.index & attrs])
 
             start = list(np.round(geometry.coords[0], PRECISION))
             end = list(np.round(geometry.coords[-1], PRECISION))
@@ -58,11 +61,14 @@ def make_network(sidewalks, crossings, elevator_paths):
             # Add edge
             # retain original order in which geometry was added - necessary to
             # do costing based on directional attributes.
+            row_attrs = dict(row)
             row_attrs['from'] = start_node
             row_attrs['to'] = end_node
 
             G.add_edge(start_node, end_node, path_type=path_type,
                        **row_attrs)
+
+        gdf.apply(process_row, axis=1)
 
         return G
 
