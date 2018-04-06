@@ -37,10 +37,13 @@ def main():
     print('Input data read.')
 
     print('Building graph (this may take a few minutes) ...')
-    network_handlers.build_G(layers['sidewalks'], layers['crossings'],
-                             layers['elevator_paths'],
-                             os.path.join(datadir, 'graph.txt'))
-    print('Graph built')
+    G = network_handlers.build_G(layers['sidewalks'], layers['crossings'],
+                                 layers['elevator_paths'],
+                                 os.path.join(datadir, 'graph.pkl'))
+    print('Graph built.')
+    print('Building spatial index...')
+    network_handlers.build_sindex(G, os.path.join(datadir, 'sindex.pkl'))
+    print('Spatial index built.')
 
 
 if __name__ == '__main__':

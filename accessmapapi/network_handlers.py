@@ -49,7 +49,7 @@ def build_G_cached(app):
 
     app.logger.info('Graph or spatial index have not been loaded.')
     datadir = app.config['PEDDATADIR']
-    graph_path = os.path.join(datadir, 'graph.txt')
+    graph_path = os.path.join(datadir, 'graph.pkl')
 
     # Logic:
     # 1. Attempt to read the spatial index.
@@ -86,8 +86,12 @@ def build_G_cached(app):
     return G
 
 
-def build_sindex(G):
-    return network.make_sindex(G)
+def build_sindex(G, sindex_path):
+    sindex, sindex_list = network.make_sindex(G)
+    with open(sindex_path, 'wb') as f:
+        pickle.dump(sindex_list, f)
+
+    return sindex
 
 
 def build_sindex_cached(app):
@@ -97,13 +101,33 @@ def build_sindex_cached(app):
     if sindex is not None:
         return sindex
 
-    # FIXME: libspatialindex can't do multithreading and the dev team doesn't
+    # TODO: libspatialindex can't do multithreading and the dev team doesn't
     # seem open to updating it. Consider rolling own rtree and/or just use
     # spatialite
-    app.logger.info('Creating spatial index...')
+    datadir = app.config['PEDDATADIR']
+    sindex_path = os.path.join(datadir, 'sindex.pkl')
+
+    # Attempt to read existing spatial index.
+    if os.path.exists(sindex_path):
+        app.logger.info('Reading spatial index...')
+        try:
+            with open(sindex_path, 'rb') as f:
+                sindex_list = pickle.load(f)
+                app.logger.info('Spatial index read.')
+                sindex = rtree.index.Index(sindex_list)
+
+                app.config['sindex'] = sindex
+
+                return sindex
+        except:
+            app.logger.info('Failed to read spatial index.')
+    else:
+        app.logger.info('No spatial index file found.')
+
+    app.logger.info('Creating new spatial index...')
 
     G = build_G_cached(app)
-    sindex = build_sindex(G)
+    sindex = build_sindex(G, sindex_path)
     app.config['sindex'] = sindex
 
     app.logger.info('Spatial index created.')

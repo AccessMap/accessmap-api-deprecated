@@ -2,7 +2,6 @@
 import numpy as np
 import networkx as nx
 import rtree
-from shapely.geometry import Point
 from accessmapapi.utils import haversine
 
 
@@ -81,19 +80,18 @@ def make_network(sidewalks, crossings, elevator_paths):
 
 
 def make_sindex(G):
-    sindex = rtree.index.Index()
+    sindex_list = []
 
     for node, d in G.nodes(data=True):
         # TODO: potential point for speedup - create bounds directly from x, y
-        sindex.insert(0, Point(d['x'], d['y']).bounds, {
-            'type': 'node',
-            'lookup': node
-        })
+        bounds = [d['x'], d['y'], d['x'], d['y']]
+        # bounds = Point(d['x'], d['y']).bounds
+        sindex_list.append([0, bounds, {'type': 'node', 'lookup': node}])
 
     for u, v, d in G.edges(data=True):
-        sindex.insert(0, d['geometry'].bounds, {
-            'type': 'edge',
-            'lookup': [u, v]
-        })
+        bounds = d['geometry'].bounds
+        sindex_list.append([0, bounds, {'type': 'edge', 'lookup': [u, v]}])
 
-    return sindex
+    sindex = rtree.index.Index(sindex_list)
+
+    return sindex, sindex_list
