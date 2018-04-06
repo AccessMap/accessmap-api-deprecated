@@ -41,8 +41,6 @@ def make_network(sidewalks, crossings, elevator_paths):
         gdf = gdf[gdf.columns & attrs]
         G = nx.Graph()
 
-        # for idx, row in gdf.iterrows():
-        @profile
         def process_row(row):
             geometry = row['geometry']
 
