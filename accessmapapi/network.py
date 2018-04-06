@@ -65,7 +65,7 @@ def make_network(sidewalks, crossings, elevator_paths):
             row_attrs['to'] = end_node
             row_attrs['path_type'] = path_type
 
-            G.add_edge(start_node, end_node, attr_dict=row_attrs)
+            G.add_edge(start_node, end_node, **row_attrs)
 
         gdf.apply(process_row, axis=1)
 
