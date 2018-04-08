@@ -2,8 +2,9 @@ import copy
 import geojson
 import math
 import networkx as nx
-from shapely.geometry import mapping
+from shapely.geometry import mapping, LineString
 from accessmapapi.graph import query
+from accessmapapi.utils import cut
 from . import costs
 
 
@@ -94,6 +95,41 @@ def dijkstra(origin, destination, G, sindex,
             total_cost += d['initial_cost']
 
             path_data['total_cost'] = total_cost
+            paths_data.append(path_data)
+
+    # Special case: if it's on the same path, consider the same-path route
+    if 'original_edge' in origins[0] and 'original_edge' in destinations[0]:
+        if origins[0]['original_edge'] == destinations[0]['original_edge']:
+            o = origins[0]
+            d = destinations[0]
+            # The start and end are on the same path. Consider the on-edge
+            # path.
+            between = copy.deepcopy(o['original_edge'])
+
+            o_diff = o['initial_edge']['length'] - edge['length']
+            d_diff = d['initial_edge']['length'] - edge['length']
+            between['length'] = between['length'] - o_diff - d_diff
+
+            o_along = between['geometry'].project(o['point'])
+            d_along = between['geometry'].project(d['point'])
+            first, second = reversed(sorted([o_along, d_along]))
+            line = between['geometry']
+            line, _ = cut(between['geometry'], first)
+            _, line = cut(line, second)
+
+            if o_along > d_along:
+                # Going in the reverse direction
+                coords = reversed(line.coords)
+                line = LineString(coords)
+                between['incline'] = -1.0 * between['incline']
+
+            between['geometry'] = line
+
+            path_data = geojson.FeatureCollection([])
+            cost = cost_fun(-1, -2, between)
+            path_data['total_cost'] = cost
+            feature = edge_to_feature(between, cost)
+            path_data.features.append(feature)
             paths_data.append(path_data)
 
     if paths_data:

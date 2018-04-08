@@ -147,6 +147,7 @@ def closest_valid_startpoints(G, sindex, lon, lat, distance, cost_fun,
                             'node': v,
                             'initial_cost': cost,
                             'initial_edge': edge,
+                            'original_edge': row_edge,
                             'point': p
                         })
                 if results:
