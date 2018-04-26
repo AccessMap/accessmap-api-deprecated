@@ -6,6 +6,7 @@ from shapely.geometry import mapping, LineString
 from accessmapapi.graph import query
 from accessmapapi.utils import cut
 from . import costs
+from . import directions
 
 
 def dijkstra(origin, destination, G, sindex,
@@ -219,11 +220,23 @@ def dijkstra(origin, destination, G, sindex,
     # Add annotated segment GeoJSON FeatureCollection
     route['segments'] = segments
 
+    # Extract steps information
+    sidewalk_track = ['length', 'street_name', 'side', 'surface']
+    crossing_track = ['curbramps', 'length', 'marked']
+    elevator_track = ['indoor', 'length', 'via']
+    steps_data = directions.path_to_directions(best_path, sidewalk_track,
+                                               crossing_track, elevator_track)
+
     # TODO: Add steps!
-    route['steps'] = []
+    route['legs'] = []
+    route['legs'].append(steps_data)
     route['summary'] = ''
-    route['duration'] = best_path['total_cost']
-    route['total_cost'] = best_path['total_cost']
+    route['duration'] = int(best_path['total_cost'])
+    total_distance = 0
+    for feature in best_path['features']:
+        total_distance += feature['properties']['length']
+    route['distance'] = round(total_distance, 1)
+    route['total_cost'] = round(best_path['total_cost'], 2)
 
     routes.append(route)
 
