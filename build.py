@@ -18,7 +18,10 @@ def main():
     while n < 10:
         failed = False
         layers = {}
-        print('Reading input data (try {})...'.format(n + 1))
+        if n > 1:
+            print('Reading input data...')
+        else:
+            print('Reading input data (try {})...'.format(n + 1))
         try:
             for layer in ['sidewalks', 'crossings', 'elevator_paths']:
                 path = os.path.join(datadir, '{}.geobuf'.format(layer))
