@@ -4,7 +4,7 @@ import geopandas as gpd
 import math
 import pyproj
 from shapely.geometry import LineString, Point
-from accessmapapi.utils import bbox_from_center, lonlat_to_utm_epsg, cut
+from accessmapapi.utils import bbox_from_center, cut, lonlat_to_utm_epsg
 
 
 def dwithin(G, sindex, lon, lat, distance):
@@ -131,6 +131,7 @@ def closest_valid_startpoints(G, sindex, lon, lat, distance, cost_fun,
                             edge['incline'] = -1.0 * edge['incline']
 
                     edge['geometry'] = geom
+                    edge['length'] = geom.length
 
                     if dest:
                         cost = cost_fun(v, u, edge)

@@ -5,7 +5,7 @@ from shapely.geometry import LineString, Point
 from shapely import ops
 
 
-RADIUS = 6378100  # Radius of the earth in meters
+RADIUS = 6371000  # Radius of the earth in meters
 
 
 def cut(line, distance):
@@ -46,7 +46,7 @@ def haversine(coords):
             math.cos(math.radians(lat2)) * math.cos(math.radians(lat1)) * \
             math.sin(dlon / 2)**2
 
-        d = 2 * RADIUS * math.asin(math.sqrt(a))
+        d = RADIUS * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
         d_tot += d
 
     return d_tot
