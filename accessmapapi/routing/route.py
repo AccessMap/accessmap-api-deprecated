@@ -222,7 +222,7 @@ def dijkstra(origin, destination, G, sindex,
     route['segments'] = segments
 
     # Extract steps information
-    sidewalk_track = ['length', 'side', 'street_name', 'surface']
+    sidewalk_track = ['length', 'side', 'street_name', 'surface', 'incline']
     crossing_track = ['curbramps', 'length', 'marked', 'street_name']
     elevator_track = ['indoor', 'length', 'via']
     steps_data = directions.path_to_directions(best_path, sidewalk_track,
