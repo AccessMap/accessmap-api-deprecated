@@ -5,72 +5,6 @@ import geojson
 from shapely.geometry import mapping, Point
 
 
-@app.route('/v2/sidewalks.geojson')
-def sidewalksv2():
-    # TODO: return proper codes and messages when bad inputs are given
-    bbox = request.args.get('bbox')
-    all_rows = request.args.get('all')
-
-    gdf = g['sidewalks']
-
-    if all_rows == 'true':
-        fc = gdf_to_fc(gdf)
-    else:
-        if not bbox:
-            fc = gdf_to_fc(gdf.iloc[:10])
-        else:
-            bounds = [float(b) for b in bbox.split(',')]
-            query = gdf.sindex.intersects(bounds, objects=True)
-            in_bounds = gdf.loc[[q.index for q in query]]
-            fc = gdf_to_fc(in_bounds)
-
-    return jsonify(fc)
-
-
-@app.route('/v2/crossings.geojson')
-def crossingsv2():
-    # TODO: return proper codes and messages when bad inputs are given
-    bbox = request.args.get('bbox')
-    all_rows = request.args.get('all')
-
-    gdf = g['crossings']
-
-    if all_rows == 'true':
-        fc = gdf_to_fc(gdf)
-    else:
-        if not bbox:
-            fc = gdf_to_fc(gdf.iloc[:10])
-        else:
-            bounds = [float(b) for b in bbox.split(',')]
-            query = gdf.sindex.intersects(bounds, objects=True)
-            in_bounds = gdf.loc[[q.index for q in query]]
-            fc = gdf_to_fc(in_bounds)
-
-    return jsonify(fc)
-
-
-@app.route('/v2/elevator_paths.geojson')
-def elevator_pathsv2():
-    # TODO: return proper codes and messages when bad inputs are given
-    bbox = request.args.get('bbox')
-    all_rows = request.args.get('all')
-
-    gdf = g['elevator_paths']
-
-    if all_rows == 'true':
-        fc = gdf_to_fc(gdf)
-    else:
-        if not bbox:
-            fc = gdf_to_fc(gdf.iloc[:10])
-        else:
-            bounds = [float(b) for b in bbox.split(',')]
-            query = gdf.sindex.intersects(bounds, objects=True)
-            in_bounds = gdf.loc[[q.index for q in query]]
-            fc = gdf_to_fc(in_bounds)
-
-    return jsonify(fc)
-
-
 @app.route('/v2/route.json', methods=['GET'])
 def routev2():
     # Test coordinates:
@@ -115,26 +49,7 @@ def routev2():
     origin = Point(reversed(origin_coords))
     destination = Point(reversed(destination_coords))
 
-    G = app.config.get('G', None)
-    sindex = app.config.get('sindex', None)
-
-    if (G is None) or (sindex is None):
-        if G is None:
-            app.logger.warn('Got request for routing, but the graph does ' +
-                            'not exist yet.')
-            code = 'GraphNotReady'
-        elif sindex is None:
-            app.logger.warn('Got request for routing, but the spatial index ' +
-                            'does not exist yet.')
-            code = 'SpatialIndexNotReady'
-
-        return {
-            'code': code,
-            'waypoints': [],
-            'routes': []
-        }
-
-    route_response = route.dijkstra(origin, destination, G, sindex,
+    route_response = route.dijkstra(origin, destination,
                                     cost_fun_gen=costs.cost_fun_generator,
                                     cost_kwargs=cost_params)
 

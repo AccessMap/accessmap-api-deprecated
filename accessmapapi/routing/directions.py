@@ -8,8 +8,8 @@ def path_to_directions(path, sidewalk_track, crossing_track, elevator_track):
         'crossing': crossing_track,
         'elevator_path': elevator_track,
     }
-    for path_type, track in tracks.items():
-        tracks[path_type] = list(set(['path_type'] + track))
+    for way, track in tracks.items():
+        tracks[way] = list(set(['way'] + track))
 
     # Iterate over each edge in the path
     steps = []
@@ -26,7 +26,7 @@ def path_to_directions(path, sidewalk_track, crossing_track, elevator_track):
         # If the properties we're tracking don't change, merge into one step.
         # e.g. a sidewalk may be split by a mid-block crossing, but so
         # long as we're continuing, no info will change.
-        track = tracks[properties['path_type']]
+        track = tracks[properties['way']]
         feature['properties'] = {}
         for k in track:
             if k in properties:
@@ -42,7 +42,7 @@ def path_to_directions(path, sidewalk_track, crossing_track, elevator_track):
         if last is None:
             steps.append(feature)
         else:
-            if last['properties']['path_type'] != properties['path_type']:
+            if last['properties']['way'] != properties['way']:
                 changed = True
             else:
                 changed = change(last['properties'], properties, track)
@@ -58,7 +58,7 @@ def path_to_directions(path, sidewalk_track, crossing_track, elevator_track):
     return steps
 
 
-def change(prop1, prop2, tracking=['path_type']):
+def change(prop1, prop2, tracking=['way']):
     if set(prop1.keys()) != set(prop2.keys()):
         return False
     for key in tracking:

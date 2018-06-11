@@ -1,15 +1,19 @@
 import copy
-import geojson
 import math
-import networkx as nx
+import numpy as np
 from shapely.geometry import mapping, LineString
+from shapely import wkt
+from accessmapapi.constants import DEFAULT_COLS
 from accessmapapi.graph import query
-from accessmapapi.utils import cut, haversine
+from accessmapapi.utils import cut, haversine, geom_table_to_fields
+from accessmapapi import exceptions
+from accessmapapi.models import edge_factory
 from . import costs
 from . import directions
+from .dijkstra import dijkstra_multi
 
 
-def dijkstra(origin, destination, G, sindex,
+def dijkstra(origin, destination,
              cost_fun_gen=costs.cost_fun_generator, cost_kwargs=None,
              only_valid=True):
     '''Process a routing request, returning a Mapbox-compatible routing JSON
@@ -26,11 +30,16 @@ def dijkstra(origin, destination, G, sindex,
     :type cost_kwargs: dict
 
     '''
+    Edge = edge_factory(DEFAULT_COLS)
+
     # Query the start and end points for viable features
-    cost_fun = costs.cost_fun_generator(**cost_kwargs)
-    origins = query.closest_valid_startpoints(G, sindex, origin.x, origin.y,
+    if cost_kwargs is None:
+        cost_fun = costs.cost_fun_generator()
+    else:
+        cost_fun = costs.cost_fun_generator(**cost_kwargs)
+    origins = query.closest_valid_startpoints(Edge, origin.x, origin.y,
                                               100, cost_fun)
-    destinations = query.closest_valid_startpoints(G, sindex, destination.x,
+    destinations = query.closest_valid_startpoints(Edge, destination.x,
                                                    destination.y, 100,
                                                    cost_fun, dest=True)
 
@@ -55,48 +64,79 @@ def dijkstra(origin, destination, G, sindex,
                 'routes': []
             }
 
+    def strip_null_fields(edge_dict):
+        for key, value in list(edge_dict.items()):
+            if value is None:
+                edge_dict.pop(key)
+            else:
+                try:
+                    if np.isnan(value):
+                        edge_dict.pop(key)
+                except ValueError:
+                    continue
+                except TypeError:
+                    continue
+
+    # TODO: consider case where origin and destination nodes are identical. Should
+    # essentially just ignore the route and/or get nothing from the path, but still
+    # return lines to/from origin and destination to graph.
     paths_data = []
-    for o in origins:
-        for d in destinations:
-            if o == d:
-                # Start and end points are the same - no route!
-                continue
-            path_data = geojson.FeatureCollection([])
+    for d in destinations:
+        origin_nodes = [o['node'] for o in origins]
+        path_data = {'type': 'FeatureCollection', 'features': []}
+        try:
+            # If starting point is along edge, we'll be creating an out-of-database
+            # node and two edges.
+            # We can speed up the shortest path calculation by giving
+            # dijkstra_multi *both* in-graph starting points
+            total_cost, path = dijkstra_multi(Edge, origin_nodes, cost_fun,
+                                              target=d['node'])
+        except exceptions.NoPath:
+            continue
 
-            try:
-                # TODO: consider just reimplementing custom dijkstra so that
-                # temporary edges/costing can be used and more custom behavior
-                # can be encoded (such as infinite costs). NetworkX
-                # implementation is under networkx>algorithms>shortest_paths>
-                # weighted: _dijkstra_multisource
-                total_cost, path = nx.single_source_dijkstra(G, o['node'],
-                                                             d['node'],
-                                                             weight=cost_fun)
-            except nx.NetworkXNoPath:
-                continue
+        # We got an in-database path! Now we need to add back the non-database parts
+        # like temporary split edges
+        # TODO: key origins by their node ID for faster lookup later + organization
+        match = [o for o in origins if o['node'] == path[0]]
+        if not match:
+            return {
+                'code': 'Internal Error',
+                'waypoints': [],
+                'routes': []
+            }
 
-            if 'initial_edge' in o:
-                feature1 = edge_to_feature(o['initial_edge'],
-                                           o['initial_cost'])
-                path_data['features'].append(feature1)
+        o = match[0]
 
-            for u, v in zip(path[:-1], path[1:]):
-                edge = G[u][v]
-                cost = cost_fun(u, v, edge)
-                reverse = edge['from'] != u
-                feature = edge_to_feature(edge, cost, reverse)
-                path_data['features'].append(feature)
+        if 'initial_edge' in o:
+            strip_null_fields(o['initial_edge'])
+            feature1 = edge_to_feature(o['initial_edge'],
+                                       o['initial_cost'])
+            path_data['features'].append(feature1)
 
-            if 'initial_edge' in d:
-                feature2 = edge_to_feature(d['initial_edge'],
-                                           d['initial_cost'])
-                path_data['features'].append(feature2)
+        fields = geom_table_to_fields(Edge)
+        for u, v in zip(path[:-1], path[1:]):
+            # TODO: potential point for optimization
+            edge = list(Edge.select(*fields).where(Edge.u == u and Edge.v == v).dicts())[0]
+            # Remove null / none-ish values. TODO: extract into function
+            strip_null_fields(edge)
+            cost = cost_fun(u, v, edge)
+            # TODO: figure out why the column name for geoms have trailing quotes.
+            edge['geometry'] = wkt.loads(edge['geometry")'])
+            edge.pop('geometry")')
+            feature = edge_to_feature(edge, cost)
+            path_data['features'].append(feature)
 
-            total_cost += o['initial_cost']
-            total_cost += d['initial_cost']
+        if 'initial_edge' in d:
+            strip_null_fields(d['initial_edge'])
+            feature2 = edge_to_feature(d['initial_edge'],
+                                       d['initial_cost'])
+            path_data['features'].append(feature2)
 
-            path_data['total_cost'] = total_cost
-            paths_data.append(path_data)
+        total_cost += o['initial_cost']
+        total_cost += d['initial_cost']
+
+        path_data['total_cost'] = total_cost
+        paths_data.append(path_data)
 
     # Special case: if it's on the same path, also consider the same-path route
     if 'original_edge' in origins[0] and 'original_edge' in destinations[0]:
@@ -127,7 +167,7 @@ def dijkstra(origin, destination, G, sindex,
             between['geometry'] = line
             between['length'] = haversine(line.coords)
 
-            path_data = geojson.FeatureCollection([])
+            path_data = { 'type': 'FeatureCollection', 'features': []}
             cost = cost_fun(-1, -2, between)
             path_data['total_cost'] = cost
             feature = edge_to_feature(between, cost)
@@ -153,8 +193,10 @@ def dijkstra(origin, destination, G, sindex,
             'routes': []
         }
 
+    # TODO: normalize coordinate values (round to 7th decimal precision)
+
     # Start at first point
-    segments = geojson.FeatureCollection([])
+    segments = {'type': 'FeatureCollection', 'features': []}
     coords = [best_path['features'][0]['geometry']['coordinates'][0]]
     for feature in best_path['features']:
         segments['features'].append(feature)
@@ -193,9 +235,9 @@ def dijkstra(origin, destination, G, sindex,
             distance: distance from step maneuver to next step
             heading: what is this for? Drawing an arrow maybe?
     '''
-    origin_feature = geojson.Feature()
+    origin_feature = {'type': 'Feature', 'properties': {}}
     origin_feature['geometry'] = mapping(origin)
-    destination_feature = geojson.Feature()
+    destination_feature = {'type': 'Feature', 'properties': {}}
     destination_feature['geometry'] = mapping(destination)
 
     waypoints_feature_list = []
@@ -251,25 +293,18 @@ def dijkstra(origin, destination, G, sindex,
     return route_response
 
 
-def edge_to_feature(edge, cost, reverse=False):
-    feature = geojson.Feature()
+def edge_to_feature(edge, cost):
+    feature = {'type': 'Feature', 'properties': {}}
 
     # Prevent editing of original edge
     edge = copy.deepcopy(edge)
-
-    if reverse:
-        coords = list(reversed(edge['geometry'].coords))
-        edge['geometry'].coords = coords
-
-        if 'incline' in edge:
-            edge['incline'] = -1.0 * edge['incline']
 
     feature['geometry'] = mapping(edge['geometry'])
 
     edge['cost'] = cost
 
-    edge.pop('from')
-    edge.pop('to')
+    edge.pop('u')
+    edge.pop('v')
     edge.pop('geometry')
 
     feature['properties'] = edge

@@ -1,10 +1,8 @@
 '''The flask application package.'''
-from flask import Flask
+from flask import Flask, g
 import logging
 import os
-import time
-import threading
-from accessmapapi import network_handlers
+from accessmapapi import db
 
 
 # Set up the app
@@ -32,41 +30,31 @@ def create_app():
     app.logger.addHandler(handler)
     app.logger.setLevel(logging.INFO)
 
-    # CORS responses
-    # FIXME: re-enable CORS soon
+    @app.before_request
+    def before_request():
+        # Create a db connection
+        try:
+            g.db = db.database
+            g.db.connect()
+            # Enable spatialite extension
+            g.db.load_module('mod_spatialite.so')
+        except:
+            # TODO: Catch a useful exception?
+            pass
+
     @app.after_request
     def after_request(response):
+        # Tear down db connection
+        g.db.close()
+
+        # CORS responses
+        # TODO: Add some kind of control on access?
         response.headers.add("Access-Control-Allow-Origin", "*")
         response.headers.add("Access-Control-Allow-Headers",
                              "Content-Type,Authorization")
         response.headers.add("Access-Control-Allow-Methods", "GET")
+
         return response
-
-    def initialize():
-        while True:
-            failed = False
-            try:
-                for layer in ['sidewalks', 'crossings', 'elevator_paths']:
-                    network_handlers.get_geobuf_cached(layer, app)
-            except:
-                failed = True
-
-            if failed:
-                app.logger.info('Cannot read input data, checking in 2 secs.')
-                time.sleep(2)
-            else:
-                break
-
-        # Requesting the spatial index and graph causes these things to happen:
-        # - Sidewalk and crossing data gets read
-        # - The graph gets read and/or recreated
-        # - The spatial index gets created
-        network_handlers.build_G_cached(app)
-        network_handlers.build_sindex_cached(app)
-
-    # Initialize data
-    thread = threading.Thread(name='read_data', target=initialize)
-    thread.start()
 
     return app
 

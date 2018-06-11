@@ -1,8 +1,10 @@
 import geopandas as gpd
 import math
+from peewee import fn
 import pyproj
 from shapely.geometry import LineString, Point
 from shapely import ops
+from accessmapapi.constants import PRECISION
 
 
 RADIUS = 6371000  # Radius of the earth in meters
@@ -62,8 +64,11 @@ def bbox_from_center(lon, lat, meters):
     # that dlat = 0 or dlon = 0 to make easier calcs.
 
     # If dlon = 0, then math.sin(dlon) = 0 and only the first term matters.
-    lat2 = math.asin(math.sqrt(b))
-    dlat = math.degrees(abs(lat2 - lat))
+    # NOTE: Used rough estimate here instead of proper trig
+    meters_per_lat = 111111.1
+    dlat = meters / meters_per_lat
+    # lat2 = math.asin(math.sqrt(b))
+    # dlat = math.degrees(abs(lat2 - lat))
 
     # If dlat = 0, first term is 0 and lat1 = lat2 = lat
     dlon = 2 * math.asin(math.sqrt(b / math.cos(math.radians(lat))**2))
@@ -74,89 +79,16 @@ def bbox_from_center(lon, lat, meters):
     return bbox
 
 
-def sindex_lonlat_nearest(lon, lat, meters, sindex, G):
-    # Logic:
-    # 1) Make a 'maximum search distance' bounding box
-    # 2) Get all the features in it
-    # 3) Filter (eventually)
-    # 4) Get the closest valid path
-
-    # Get the bounding box
-    bbox = bbox_from_center(lon, lat, meters)
-
-    # Query for features, extract
-    query = sindex.intersection(bbox, objects=True)
-    features = []
-    for q in query:
-        if q.object['type'] == 'edge':
-            # It's an edge!
-            features.append(G[q.object['lookup'][0]][q.object['lookup'][1]])
-        else:
-            # It's a node - ignore it! We'll look it up later if we found an
-            # endpoint.
-            pass
-
-    if not features:
-        return None
-
-    features = gpd.GeoDataFrame(features)
-    features.crs = {'init': 'epsg:4326'}
-
-    # TODO: insert filtering logic here - e.g. can't cross the street.
-
-    # Project to UTM (based on centerpoint) for pretty good nearest neighbor
-    # calculation
-    utm_zone_epsg = lonlat_to_utm_epsg(lon, lat)
-    features_utm = features.to_crs({'init': 'epsg:{}'.format(utm_zone_epsg)})
-    wgs84 = pyproj.Proj(init='epsg:4326')
-    utm = pyproj.Proj(init='epsg:{}'.format(utm_zone_epsg))
-    center_utm = Point(pyproj.transform(wgs84, utm, lon, lat))
-
-    features_utm['distance'] = features_utm.distance(center_utm)
-
-    feature = features_utm.sort_values('distance').iloc[0]
-    geom_utm = feature.geometry
-
-    # Closest point on that feature
-    distance_along = geom_utm.project(center_utm)
-
-    def proj(x, y):
-        return pyproj.transform(utm, wgs84, x, y)
-
-    # Decide whether to return the edge of point
-    if distance_along < 0.1:
-        # We should use the 'start' node
-        return {
-            'type': 'node',
-            'lookup': feature['from']
-        }
-    elif (geom_utm.length - distance_along) < 0.1:
-        # We should use the 'end' node
-        return {
-            'type': 'node',
-            'lookup': feature['to']
-        }
-    else:
-        # We should use the edge.
-        fraction_along = geom_utm.project(center_utm, normalized=True)
-        distance = geom_utm.length * fraction_along
-        geom_u, geom_v = cut(geom_utm, distance)
-        length_u = geom_u.length
-        length_v = geom_v.length
-        geom_u_wgs84 = ops.transform(proj, geom_u)
-        geom_v_wgs84 = ops.transform(proj, geom_v)
-
-        return {
-            'type': 'edge',
-            'lookup': [feature['from'], feature['to']],
-            'geometry_u': geom_u_wgs84,
-            'length_u': length_u,
-            'geometry_v': geom_v_wgs84,
-            'length_v': length_v,
-        }
-
-
 def lonlat_to_utm_epsg(lon, lat):
     utm_zone_epsg = 32700 - 100 * round((45 + lat) / 90.) + \
-        round((183 + lon) / 6.)
+        round((183 + lon) / PRECISION)
     return utm_zone_epsg
+
+def geom_table_to_fields(table):
+    fields = []
+    for field_name in table._meta.sorted_field_names:
+        if field_name == 'geometry':
+            fields.append(fn.AsText(getattr(table, field_name)))
+        else:
+            fields.append(getattr(table, field_name))
+    return fields

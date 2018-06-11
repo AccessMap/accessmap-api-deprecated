@@ -1,31 +1,38 @@
 '''The flask application package.'''
+import json
 import os
 # opening_hours screws up cwd, have to set it early
 file_directory = os.path.abspath(os.path.dirname(os.path.realpath(__file__)))
 import time  # noqa
-from accessmapapi import network_handlers  # noqa
+from accessmapapi.build.trans_network import trans_network  # noqa
+
+print(os.getcwd())
 
 
+# TODO: drop the database first
 def main():
+    with open('./layers.json') as f:
+        config = json.load(f)
+
     if 'PEDDATADIR' in os.environ:
         datadir = os.environ['PEDDATADIR']
     else:
         datadir = os.path.join(file_directory, 'data')
 
-    print(datadir)
+    # Embed full path into config
+    for name, layer in config.items():
+        layer['path'] = os.path.abspath(os.path.join(datadir, layer['path']))
+
     # Try to build the graph 10 times - usually just waiting on data
     n = 0
     while n < 10:
         failed = False
-        layers = {}
         if n > 1:
             print('Reading input data...')
         else:
             print('Reading input data (try {})...'.format(n + 1))
         try:
-            for layer in ['sidewalks', 'crossings', 'elevator_paths']:
-                path = os.path.join(datadir, '{}.geobuf'.format(layer))
-                layers[layer] = network_handlers.get_geobuf(path)
+            trans_network(config)
         except Exception as e:
             print(e)
             failed = True
@@ -37,17 +44,7 @@ def main():
         else:
             break
 
-    print('Input data read.')
-
-    print('Building graph (this may take a few minutes) ...')
-    G = network_handlers.build_G(layers['sidewalks'], layers['crossings'],
-                                 layers['elevator_paths'],
-                                 os.path.join(datadir, 'graph.pkl'))
     print('Graph built.')
-    print('Building spatial index...')
-    network_handlers.build_sindex(G, os.path.join(datadir, 'sindex.pkl'))
-    print('Spatial index built.')
-
 
 if __name__ == '__main__':
     main()
