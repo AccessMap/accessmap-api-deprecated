@@ -15,6 +15,7 @@ COPY requirements.txt .
 RUN pip3 install -r requirements.txt
 
 COPY accessmapapi ./accessmapapi
+COPY build.py .
 COPY runserver.py .
 
 CMD ["python3", "./runserver.py"]
