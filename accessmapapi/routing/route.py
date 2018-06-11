@@ -1,6 +1,5 @@
 import copy
 import math
-import numpy as np
 from shapely.geometry import mapping, LineString
 from shapely import wkt
 from accessmapapi.constants import DEFAULT_COLS
@@ -68,14 +67,14 @@ def dijkstra(origin, destination,
         for key, value in list(edge_dict.items()):
             if value is None:
                 edge_dict.pop(key)
-            else:
-                try:
-                    if np.isnan(value):
-                        edge_dict.pop(key)
-                except ValueError:
-                    continue
-                except TypeError:
-                    continue
+#             else:
+#                 try:
+#                     if np.isnan(value):
+#                         edge_dict.pop(key)
+#                 except ValueError:
+#                     continue
+#                 except TypeError:
+#                     continue
 
     # TODO: consider case where origin and destination nodes are identical. Should
     # essentially just ignore the route and/or get nothing from the path, but still

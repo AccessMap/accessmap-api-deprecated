@@ -1,5 +1,4 @@
 '''Module containing transportation network (initial graph) build functions'''
-import numpy as np
 from peewee import fn, DoubleField
 from shapely.geometry import shape
 import sys
@@ -65,8 +64,8 @@ def trans_network(layer_config):
 
     def record_to_edge(record, way):
         geometry = record['geometry']
-        u = str(list(np.round(geometry['coordinates'][0], PRECISION)))
-        v = str(list(np.round(geometry['coordinates'][-1], PRECISION)))
+        u = str([round(coord, PRECISION) for coord in geometry['coordinates'][0]])
+        v = str([round(coord, PRECISION) for coord in geometry['coordinates'][-1]])
         # Calculate length - ignore any 'length' property that comes with record
         length = haversine(geometry['coordinates'])
         return {

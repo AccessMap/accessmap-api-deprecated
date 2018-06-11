@@ -1,4 +1,3 @@
-import geopandas as gpd
 import math
 from peewee import fn
 import pyproj

@@ -1,8 +1,6 @@
 '''Queries on the routing graph - generall geospatial.'''
 import copy
-import geopandas as gpd
 import math
-import pandas as pd
 from peewee import fn
 import pyproj
 from shapely.geometry import LineString, Point
@@ -17,8 +15,6 @@ def closest_valid_startpoints(table, lon, lat, distance, cost_fun,
     utm = pyproj.Proj(init='epsg:{}'.format(utm_zone))
     point_utm = Point(pyproj.transform(wgs84, utm, lon, lat))
 
-    ##
-
     db = table._meta.database
 
     bbox = bbox_from_center(lon, lat, distance)
@@ -32,36 +28,37 @@ def closest_valid_startpoints(table, lon, lat, distance, cost_fun,
     # We need to extract the geometry as WKT, and get all the rows - iterate over the
     # columns
     fields = geom_table_to_fields(table)
+    # Note: could add reprojection in the select statement, probably faster
     edges_within_bbox = table.select(*fields).where(table.id << rows_within_bbox).dicts()
 
     # For some reason the output column is named 'geometry")'. Not sure why.
-    df = pd.DataFrame(list(edges_within_bbox))
-    df['geometry'] = df['geometry")'].apply(wkt.loads)
-    df = df.drop(columns='geometry")')
-    gdf = gpd.GeoDataFrame(df)
-    gdf.crs = {'init': 'epsg:4326'}
-    gdf_utm = gdf.to_crs({'init': 'epsg:{}'.format(utm_zone)})
-    gdf_utm['distance'] = gdf_utm.distance(point_utm)
-    gdf_sorted = gdf_utm.sort_values('distance')
+    for edge in edges_within_bbox:
+        edge['geometry'] = wkt.loads(edge['geometry")'])
+        utm_coords = []
+        for x, y in edge['geometry'].coords:
+            utm_coords.append(pyproj.transform(wgs84, utm, x, y))
+        utm_geom = LineString(utm_coords)
+        edge['geometry_utm'] = utm_geom
+        edge['distance'] = utm_geom.distance(point_utm)
 
-    ##
+    sorted_edges = sorted(edges_within_bbox, key=lambda x: x['distance'])
 
     # TODO: add field null check here - remove edge keys with null values (None or nan)
+    for i, box_edge in enumerate(sorted_edges):
+        box_edge.pop('distance')
 
-    for idx, row in gdf_sorted.iterrows():
-        row_edge = dict(row)
-        row_edge.pop('distance')
-        # Check for intersection
-        distance_along = row.geometry.project(point_utm)
-        point2 = row.geometry.interpolate(distance_along)
+        # Check for intersections between query point and other intermediate edges
+        distance_along = box_edge['geometry_utm'].project(point_utm)
+        point2 = box_edge['geometry_utm'].interpolate(distance_along)
         line = LineString([point_utm, point2])
-        non_idx = gdf[gdf_sorted.index != idx]
-        if non_idx.intersects(line).any():
-            continue
+        for j, e in enumerate(sorted_edges):
+            if i != j:
+                if box_edge['geometry_utm'].intersects(line):
+                    continue
 
         if distance_along < 0.1:
             # We're at an endpoint. Enumerate and evaluate edges
-            u = row_edge['u']
+            u = box_edge['u']
             # Get adjacent edges
             adjacent = table.select().where(table.u == u).dicts()
 
@@ -76,9 +73,9 @@ def closest_valid_startpoints(table, lon, lat, distance, cost_fun,
                         'initial_cost': 0,
                         'point': p
                     }]
-        elif (row.geometry.length - distance_along) < 0.1:
+        elif (box_edge['geometry_utm'].length - distance_along) < 0.1:
             # We're at an endpoint. Enumerate and evaluate edges
-            u = row_edge['v']
+            u = box_edge['v']
             # Get adjacent edges
             adjacent = table.select().where(table.u == u).dicts()
 
@@ -95,15 +92,15 @@ def closest_valid_startpoints(table, lon, lat, distance, cost_fun,
                     }]
         else:
             # We're along the edge. Split and evaluate 2 new edges.
-            new_edges = cut(row_edge['geometry'], distance_along)
+            new_edges = cut(box_edge['geometry_utm'], distance_along)
 
-            edge1 = copy.deepcopy(row_edge)
+            edge1 = copy.deepcopy(box_edge)
             edge1['v'] = -1
-            edge1['geometry'] = new_edges[0]
+            edge1['geometry_utm'] = new_edges[0]
 
-            edge2 = copy.deepcopy(row_edge)
+            edge2 = copy.deepcopy(box_edge)
             edge2['u'] = -1
-            edge2['geometry'] = new_edges[1]
+            edge2['geometry_utm'] = new_edges[1]
 
             if dest:
                 # Edges should point towards destination
@@ -114,7 +111,7 @@ def closest_valid_startpoints(table, lon, lat, distance, cost_fun,
 
             results = []
             for edge in [edge1, edge2]:
-                edge['length'] = edge['geometry'].length
+                edge['length'] = edge['geometry_utm'].length
                 cost = cost_fun(edge['u'], edge['v'], edge)
 
                 if cost is not None:
@@ -122,8 +119,9 @@ def closest_valid_startpoints(table, lon, lat, distance, cost_fun,
                     x, y = point2.coords[0]
                     p = Point(pyproj.transform(utm, wgs84, x, y))
                     g2 = LineString([pyproj.transform(utm, wgs84, x, y)
-                                     for x, y in edge['geometry'].coords])
+                                     for x, y in edge['geometry_utm'].coords])
                     edge['geometry'] = g2
+                    edge.pop('geometry_utm')
 
                     # FIXME: are initial_edge and original_edge redundant?
                     # TODO: Decide whether all of these keys are necessary
@@ -131,7 +129,7 @@ def closest_valid_startpoints(table, lon, lat, distance, cost_fun,
                         'node': edge['u'] if dest else edge['v'],
                         'initial_cost': cost,
                         'initial_edge': edge,
-                        'original_edge': row_edge,
+                        'original_edge': box_edge,
                         'point': p
                     })
             if results:
