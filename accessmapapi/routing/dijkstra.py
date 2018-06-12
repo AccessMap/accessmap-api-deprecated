@@ -3,6 +3,7 @@ from itertools import count
 import time
 
 from accessmapapi.exceptions import NoPath
+from accessmapapi.utils import strip_null_fields
 
 
 def dijkstra_multi(table, sources, weight, pred=None, paths=None,
@@ -101,6 +102,7 @@ def adj_nodes(table, colnames, u):
 
     for row in cursor:
         data = dict(zip(colnames, row))
+        strip_null_fields(data)
         v = int(data.pop('v'))
         neighbors.append((v, data))
 

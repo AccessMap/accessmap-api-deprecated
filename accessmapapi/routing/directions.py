@@ -60,8 +60,8 @@ def path_to_directions(path, sidewalk_track, crossing_track, elevator_track):
 
 def change(prop1, prop2, tracking=['way']):
     if set(prop1.keys()) != set(prop2.keys()):
-        return False
+        return True
     for key in tracking:
         if prop1[key] != prop2[key]:
-            return False
-    return True
+            return True
+    return False

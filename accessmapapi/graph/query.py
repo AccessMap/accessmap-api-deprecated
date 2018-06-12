@@ -1,11 +1,11 @@
 '''Queries on the routing graph - generall geospatial.'''
 import copy
 import math
-from peewee import fn
 import pyproj
 from shapely.geometry import LineString, Point
 from shapely import wkt
-from accessmapapi.utils import bbox_from_center, cut, lonlat_to_utm_epsg, geom_table_to_fields
+from accessmapapi.utils import bbox_from_center, cut, lonlat_to_utm_epsg
+from accessmapapi.utils import strip_null_fields, fields_with_geom
 
 
 def closest_valid_startpoints(table, lon, lat, distance, cost_fun,
@@ -27,7 +27,7 @@ def closest_valid_startpoints(table, lon, lat, distance, cost_fun,
     rows_within_bbox = db.execute_sql(within_bbox_sql, bbox).fetchall()
     # We need to extract the geometry as WKT, and get all the rows - iterate over the
     # columns
-    fields = geom_table_to_fields(table)
+    fields = fields_with_geom(table, table._meta.sorted_field_names)
     # Note: could add reprojection in the select statement, probably faster
     edges_within_bbox = table.select(*fields).where(table.id << rows_within_bbox).dicts()
 
@@ -45,6 +45,7 @@ def closest_valid_startpoints(table, lon, lat, distance, cost_fun,
 
     # TODO: add field null check here - remove edge keys with null values (None or nan)
     for i, box_edge in enumerate(sorted_edges):
+        strip_null_fields(box_edge)
         box_edge.pop('distance')
 
         # Check for intersections between query point and other intermediate edges
@@ -63,7 +64,7 @@ def closest_valid_startpoints(table, lon, lat, distance, cost_fun,
             adjacent = table.select().where(table.u == u).dicts()
 
             for edge in adjacent:
-                v = edge[v]
+                v = edge['v']
                 cost = cost_fun(u, v, edge)
                 if cost != math.inf:
                     x, y = point2.coords[0]
@@ -77,10 +78,10 @@ def closest_valid_startpoints(table, lon, lat, distance, cost_fun,
             # We're at an endpoint. Enumerate and evaluate edges
             u = box_edge['v']
             # Get adjacent edges
-            adjacent = table.select().where(table.u == u).dicts()
+            adjacent = table.select(*fields_with_geom(table)).where(table.u == u).dicts()
 
             for edge in adjacent:
-                v = edge[u]
+                v = edge['v']
                 cost = cost_fun(u, v, edge)
                 if cost != math.inf:
                     x, y = point2.coords[0]
@@ -145,7 +146,7 @@ def reverse_edge(edge):
     # global flask config.
     new_edge['u'] = edge['v']
     new_edge['v'] = edge['u']
-    if 'incline' in edge:
+    if 'incline' in edge and edge['incline'] is not None:
         new_edge['incline'] = -1.0 * edge['incline']
     coords = reversed(edge['geometry'].coords)
     edge['geometry'].coords = list(coords)

@@ -1,8 +1,12 @@
 '''The flask application package.'''
 from flask import Flask, g
+import json
 import logging
 import os
 from accessmapapi import db
+
+with open('./layers.json') as f:
+    config = json.load(f)
 
 
 # Set up the app
@@ -41,6 +45,7 @@ def create_app():
         except:
             # TODO: Catch a useful exception?
             pass
+        g.layers = config
 
     @app.after_request
     def after_request(response):

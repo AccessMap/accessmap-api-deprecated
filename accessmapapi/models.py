@@ -9,9 +9,6 @@ from accessmapapi import db
 class GeometryField(Field):
     field_type = 'geometry'
 
-    def python_value(self, value):
-        return fn.AsText(value)
-
 
 COL_MAP = {
     'decimal': DecimalField,

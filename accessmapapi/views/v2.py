@@ -51,7 +51,7 @@ def routev2():
 
     route_response = route.dijkstra(origin, destination,
                                     cost_fun_gen=costs.cost_fun_generator,
-                                    cost_kwargs=cost_params)
+                                    cost_kwargs=cost_params, layers=g.layers)
 
     return jsonify(route_response)
 

@@ -3,10 +3,11 @@ import math
 from shapely.geometry import mapping, LineString
 from shapely import wkt
 from accessmapapi.constants import DEFAULT_COLS
+from accessmapapi.build.featuresource import FeatureSource
 from accessmapapi.graph import query
-from accessmapapi.utils import cut, haversine, geom_table_to_fields
+from accessmapapi.utils import cut, haversine, strip_null_fields, fields_with_geom
 from accessmapapi import exceptions
-from accessmapapi.models import edge_factory
+from accessmapapi.models import edge_factory, GeometryField
 from . import costs
 from . import directions
 from .dijkstra import dijkstra_multi
@@ -14,7 +15,7 @@ from .dijkstra import dijkstra_multi
 
 def dijkstra(origin, destination,
              cost_fun_gen=costs.cost_fun_generator, cost_kwargs=None,
-             only_valid=True):
+             only_valid=True, layers=None):
     '''Process a routing request, returning a Mapbox-compatible routing JSON
     object.
 
@@ -29,7 +30,21 @@ def dijkstra(origin, destination,
     :type cost_kwargs: dict
 
     '''
-    Edge = edge_factory(DEFAULT_COLS)
+    if layers is None:
+        columns = DEFAULT_COLS
+    else:
+        columns = {}
+        sources = []
+        for name, layer in layers.items():
+            for propname, value in layer['properties'].items():
+                columns[propname] = value['type']
+        columns['way'] = 'varchar'
+        columns['u'] = 'integer'
+        columns['v'] = 'integer'
+        columns['forward'] = 'integer'
+
+    Edge = edge_factory(columns)
+    Edge._meta.add_field('geometry', GeometryField())
 
     # Query the start and end points for viable features
     if cost_kwargs is None:
@@ -63,19 +78,6 @@ def dijkstra(origin, destination,
                 'routes': []
             }
 
-    def strip_null_fields(edge_dict):
-        for key, value in list(edge_dict.items()):
-            if value is None:
-                edge_dict.pop(key)
-#             else:
-#                 try:
-#                     if np.isnan(value):
-#                         edge_dict.pop(key)
-#                 except ValueError:
-#                     continue
-#                 except TypeError:
-#                     continue
-
     # TODO: consider case where origin and destination nodes are identical. Should
     # essentially just ignore the route and/or get nothing from the path, but still
     # return lines to/from origin and destination to graph.
@@ -90,6 +92,7 @@ def dijkstra(origin, destination,
             # dijkstra_multi *both* in-graph starting points
             total_cost, path = dijkstra_multi(Edge, origin_nodes, cost_fun,
                                               target=d['node'])
+            print(path)
         except exceptions.NoPath:
             continue
 
@@ -112,7 +115,7 @@ def dijkstra(origin, destination,
                                        o['initial_cost'])
             path_data['features'].append(feature1)
 
-        fields = geom_table_to_fields(Edge)
+        fields = fields_with_geom(Edge)
         for u, v in zip(path[:-1], path[1:]):
             # TODO: potential point for optimization
             edge = list(Edge.select(*fields).where(Edge.u == u and Edge.v == v).dicts())[0]

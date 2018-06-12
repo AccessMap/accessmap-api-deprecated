@@ -83,11 +83,27 @@ def lonlat_to_utm_epsg(lon, lat):
         round((183 + lon) / PRECISION)
     return utm_zone_epsg
 
-def geom_table_to_fields(table):
+
+def strip_null_fields(edge_dict):
+    for key, value in list(edge_dict.items()):
+        if value is None:
+            edge_dict.pop(key)
+#         else:
+#             try:
+#                 if np.isnan(value):
+#                     edge_dict.pop(key)
+#             except ValueError:
+#                 continue
+#             except TypeError:
+#                 continue
+
+
+def fields_with_geom(table, query_fields=None):
     fields = []
     for field_name in table._meta.sorted_field_names:
-        if field_name == 'geometry':
-            fields.append(fn.AsText(getattr(table, field_name)))
-        else:
-            fields.append(getattr(table, field_name))
+        if query_fields is None or field_name in query_fields:
+            field = getattr(table, field_name)
+            if field.field_type == 'geometry':
+                field = fn.AsText(field)
+            fields.append(field)
     return fields
