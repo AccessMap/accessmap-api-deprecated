@@ -149,6 +149,6 @@ def reverse_edge(edge):
     new_edge['v'] = edge['u']
     if 'incline' in edge and edge['incline'] is not None:
         new_edge['incline'] = -1.0 * edge['incline']
-    coords = reversed(edge['geometry'].coords)
-    edge['geometry'].coords = list(coords)
+    coords = reversed(edge['geometry_utm'].coords)
+    new_edge['geometry_utm'].coords = list(coords)
     return new_edge
