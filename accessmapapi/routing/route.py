@@ -92,7 +92,6 @@ def dijkstra(origin, destination,
             # dijkstra_multi *both* in-graph starting points
             total_cost, path = dijkstra_multi(Edge, origin_nodes, cost_fun,
                                               target=d['node'])
-            print(path)
         except exceptions.NoPath:
             continue
 
@@ -118,7 +117,8 @@ def dijkstra(origin, destination,
         fields = fields_with_geom(Edge)
         for u, v in zip(path[:-1], path[1:]):
             # TODO: potential point for optimization
-            edge = list(Edge.select(*fields).where(Edge.u == u and Edge.v == v).dicts())[0]
+            q = Edge.select(*fields).where((Edge.u == u) & (Edge.v == v))
+            edge = list(q.dicts())[0]
             # Remove null / none-ish values. TODO: extract into function
             strip_null_fields(edge)
             cost = cost_fun(u, v, edge)

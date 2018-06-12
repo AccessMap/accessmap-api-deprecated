@@ -47,6 +47,7 @@ def closest_valid_startpoints(table, lon, lat, distance, cost_fun,
     for i, box_edge in enumerate(sorted_edges):
         strip_null_fields(box_edge)
         box_edge.pop('distance')
+        box_edge.pop('geometry")')
 
         # Check for intersections between query point and other intermediate edges
         distance_along = box_edge['geometry_utm'].project(point_utm)
