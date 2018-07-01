@@ -120,10 +120,10 @@ def cost_fun_generator(base_speed=WALK_BASE, incline_min=-0.1,
             time += 45
 
         # Curb cost
-        if avoid_curbs:
-            if (way == 'crossing') and d['curbramps'] == 0:
-                # A hard barrier - exit early with infinite cost
-                return None
+        # if avoid_curbs:
+        #     if (way == 'crossing') and d['curbramps'] == 0:
+        #         # A hard barrier - exit early with infinite cost
+        #         return None
 
         # Return time estimate - this is currently the cost
         return time

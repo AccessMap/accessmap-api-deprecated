@@ -2,11 +2,11 @@
 import copy
 
 
-def path_to_directions(path, sidewalk_track, crossing_track, elevator_track):
+def path_to_directions(path, sidewalk_track, crossing_track, footway_track):
     tracks = {
         'sidewalk': sidewalk_track,
         'crossing': crossing_track,
-        'elevator_path': elevator_track,
+        'footway': footway_track,
     }
     for way, track in tracks.items():
         tracks[way] = list(set(['way'] + track))

@@ -266,11 +266,11 @@ def dijkstra(origin, destination,
     route['segments'] = segments
 
     # Extract steps information
-    sidewalk_track = ['length', 'side', 'street_name', 'surface', 'incline']
-    crossing_track = ['curbramps', 'length', 'marked', 'street_name']
-    elevator_track = ['indoor', 'length', 'via']
+    sidewalk_track = ['length', 'surface', 'incline']
+    crossing_track = ['length', 'crossing']
+    footway_track = ['length', 'surface', 'incline']
     steps_data = directions.path_to_directions(best_path, sidewalk_track,
-                                               crossing_track, elevator_track)
+                                               crossing_track, footway_track)
 
     # TODO: Add steps!
     route['legs'] = []
