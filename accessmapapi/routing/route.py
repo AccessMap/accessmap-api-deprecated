@@ -269,8 +269,10 @@ def dijkstra(origin, destination,
     sidewalk_track = ['length', 'surface', 'incline']
     crossing_track = ['length', 'crossing']
     footway_track = ['length', 'surface', 'incline']
+    stairs_track = ['length']
     steps_data = directions.path_to_directions(best_path, sidewalk_track,
-                                               crossing_track, footway_track)
+                                               crossing_track, footway_track,
+                                               stairs_track)
 
     # TODO: Add steps!
     route['legs'] = []
