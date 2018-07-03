@@ -34,6 +34,8 @@ def routev2():
                 barriers = value.split('|')
                 if 'curbs' in barriers:
                     cost_params['avoid_curbs'] = True
+                if 'stairs' in barriers:
+                    cost_params['avoid_stairs'] = True
             elif param == 'incline_max':
                 cost_params['incline_max'] = float(value)
             elif param == 'incline_min':
