@@ -6,8 +6,6 @@ file_directory = os.path.abspath(os.path.dirname(os.path.realpath(__file__)))
 import time  # noqa
 from accessmapapi.build.trans_network import trans_network  # noqa
 
-print(os.getcwd())
-
 
 # TODO: drop the database first
 def main():
@@ -43,6 +41,9 @@ def main():
             time.sleep(2)
         else:
             break
+
+    if failed:
+        raise Exception('Graph failed to build - could not find input files')
 
     print('Graph built.')
 
