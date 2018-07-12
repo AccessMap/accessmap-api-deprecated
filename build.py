@@ -1,6 +1,7 @@
 '''The flask application package.'''
 import json
 import os
+from accessmapapi.db import database_build as db
 # opening_hours screws up cwd, have to set it early
 file_directory = os.path.abspath(os.path.dirname(os.path.realpath(__file__)))
 import time  # noqa
@@ -30,13 +31,15 @@ def main():
         else:
             print('Reading input data (try {})...'.format(n + 1))
         try:
-            trans_network(config)
+            trans_network(config, db)
         except Exception as e:
             print(e)
             failed = True
 
         if failed:
             n += 1
+            # FIXME: if the script fails for any reason (not just reading data), this
+            # message occurs - split into discrete steps so the messages are useful
             print('Cannot read input data, checking in 2 secs.')
             time.sleep(2)
         else:

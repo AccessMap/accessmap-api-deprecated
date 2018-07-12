@@ -1,15 +1,17 @@
 '''Module containing transportation network (initial graph) build functions'''
+import os
+import sys
+
 from peewee import fn, DoubleField
 from shapely.geometry import shape
-import sys
-from accessmapapi.db import database as db
+
 from accessmapapi.constants import PRECISION
 from accessmapapi.build.featuresource import FeatureSource
 from accessmapapi.models import GeometryField, Node, edge_factory
 from accessmapapi.utils import haversine
 
 
-def trans_network(layer_config):
+def trans_network(layer_config, db):
     '''Create an initial transportation network as sqlite tables from a stream
     of incoming ways. The ways can be either a stream or just any iterable
     containing appropriate GeoJSON features.
@@ -40,6 +42,8 @@ def trans_network(layer_config):
     except:
         pass
     Edge = edge_factory(cols, 'edges')
+    Edge._meta.database = db
+    Node._meta.database = db
     modlist = [Edge, Node]
     db.drop_tables(modlist)
     Edge.add_index('u')
@@ -125,3 +129,6 @@ def trans_network(layer_config):
         sql = "SELECT CreateSpatialIndex('edges', 'geometry')"
         db.execute_sql(sql)
         print('Done')
+
+    # The 'build' table was successfully created - replace the main one!
+    os.rename('./data/build.db', './data/graph.db')
