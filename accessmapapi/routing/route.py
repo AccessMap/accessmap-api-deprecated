@@ -48,9 +48,9 @@ def dijkstra(origin, destination,
 
     # Query the start and end points for viable features
     if cost_kwargs is None:
-        cost_fun = costs.cost_fun_generator()
+        cost_fun = cost_fun_gen()
     else:
-        cost_fun = costs.cost_fun_generator(**cost_kwargs)
+        cost_fun = cost_fun_gen(**cost_kwargs)
     origins = query.closest_valid_startpoints(Edge, origin.x, origin.y,
                                               100, cost_fun)
     destinations = query.closest_valid_startpoints(Edge, destination.x,
@@ -266,11 +266,17 @@ def dijkstra(origin, destination,
     route['segments'] = segments
 
     # Extract steps information
-    sidewalk_track = ['length', 'side', 'street_name', 'surface', 'incline']
-    crossing_track = ['curbramps', 'length', 'marked', 'street_name']
-    elevator_track = ['indoor', 'length', 'via']
-    steps_data = directions.path_to_directions(best_path, sidewalk_track,
-                                               crossing_track, elevator_track)
+    track = [
+        'curbramps',
+        'incline',
+        'indoor',
+        'marked',
+        'side',
+        'street_name',
+        'surface',
+        'via'
+    ]
+    steps_data = directions.path_to_directions(best_path, track)
 
     # TODO: Add steps!
     route['legs'] = []

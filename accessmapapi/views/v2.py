@@ -49,8 +49,13 @@ def routev2():
     origin = Point(reversed(origin_coords))
     destination = Point(reversed(destination_coords))
 
+    if g.costs is not None:
+        cost_fun_gen = g.costs
+    else:
+        cost_fun_gen = costs.cost_fun_generator
+
     route_response = route.dijkstra(origin, destination,
-                                    cost_fun_gen=costs.cost_fun_generator,
+                                    cost_fun_gen=cost_fun_gen,
                                     cost_kwargs=cost_params, layers=g.layers)
 
     return jsonify(route_response)

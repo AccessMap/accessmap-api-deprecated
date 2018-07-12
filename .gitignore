@@ -1,3 +1,9 @@
+# User-defined cost function
+cost_funs/*.py
+
+# User-defined data
+layers.json
+
 # Python cache
 __pycache__/
 *.pyc

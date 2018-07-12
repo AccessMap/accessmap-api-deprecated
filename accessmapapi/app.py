@@ -3,10 +3,19 @@ from flask import Flask, g
 import json
 import logging
 import os
+import sys
 from accessmapapi import db
 
 with open('./layers.json') as f:
     config = json.load(f)
+
+if os.path.exists('./cost_fun/costs_user.py'):
+    print('Loading user-supplied cost function')
+    costdir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../cost_fun'))
+    sys.path.append(costdir)
+    from costs_user import cost_fun_generator as costs
+else:
+    costs = None
 
 
 # Set up the app
@@ -36,6 +45,9 @@ def create_app():
 
     @app.before_request
     def before_request():
+        # Cost fun
+        g.costs = costs
+
         # Create a db connection
         try:
             g.db = db.database
