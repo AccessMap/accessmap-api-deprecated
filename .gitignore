@@ -1,5 +1,5 @@
 # User-defined cost function
-cost_funs/*.py
+cost_fun/*.py
 
 # User-defined data
 layers.json
