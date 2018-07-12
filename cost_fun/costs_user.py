@@ -26,7 +26,8 @@ def tobler(grade, k=3.5, m=INCLINE_IDEAL, base=WALK_BASE):
 
 
 def cost_fun_generator(base_speed=WALK_BASE, incline_min=-0.1,
-                       incline_max=0.085, avoid_curbs=True, timestamp=None):
+                       incline_max=0.085, avoid_curbs=False, avoid_stairs=False,
+                       timestamp=None):
     '''Calculates a cost-to-travel that balances distance vs. steepness vs.
     needing to cross the street.
 
@@ -73,6 +74,9 @@ def cost_fun_generator(base_speed=WALK_BASE, incline_min=-0.1,
         time = 0
 
         way = d['way']
+
+        if avoid_stairs and way == 'stairs':
+            return None
 
         # Initial speed based on incline
         # NOTE: Inclines were initially multiplied by 1000 to save on filesize
