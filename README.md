@@ -131,9 +131,9 @@ directory:
 
 In a production environment, use the (included) gunicorn server:
 
-    gunicorn -b 0.0.0.0:5555 --access-logfile=- accessmapapi:app
+    gunicorn -b 0.0.0.0:5656 --access-logfile=- accessmapapi:app
 
 You can then test your local copy by pointing your web browser to localhost,
 e.g. for a v2 sidewalks request:
 
-    localhost:5555/v2/sidewalks.geojson
+    localhost:5656/v2/sidewalks.geojson
