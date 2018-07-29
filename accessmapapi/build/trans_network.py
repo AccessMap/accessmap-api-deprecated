@@ -20,6 +20,8 @@ def trans_network(layer_config, db):
     :type ways: An iterable of GeoJSON LineString features.
 
     '''
+    # TODO: either relax constraint of uniqueness on geometries or dedupe prior to
+    # adding data - this causes first attempt at building to always fail
 
     columns = {}
     sources = []
