@@ -69,7 +69,7 @@ def walkshedv2():
 
     cutoff = request.args.get('cutoff', None)
     if cutoff is None:
-        cutoff = 10  # Default 10 mins
+        cutoff = 300  # Default to 300 seconds = 5 minutes
     else:
         try:
             cutoff = float(cutoff)
@@ -92,7 +92,7 @@ def walkshedv2():
     the_walkshed = walkshed.walkshed(lon, lat, cost_fun_gen, cost_params, cutoff)
 
     return jsonify({
-        'geometry': the_walkshed
+        'walkshed': the_walkshed
     })
 
 
