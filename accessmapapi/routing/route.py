@@ -149,8 +149,8 @@ def dijkstra(origin, destination,
             # path.
             between = copy.deepcopy(o['original_edge'])
 
-            o_diff = o['initial_edge']['length'] - edge['length']
-            d_diff = d['initial_edge']['length'] - edge['length']
+            o_diff = o['initial_edge']['length'] - o['original_edge']['length']
+            d_diff = d['initial_edge']['length'] - o['original_edge']['length']
             between['length'] = between['length'] - o_diff - d_diff
 
             o_along = between['geometry'].project(o['point'])
