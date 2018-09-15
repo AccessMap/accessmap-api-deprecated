@@ -22,7 +22,7 @@ def routev2():
         })
 
     # request route
-    cost_params = process_cost_params(request.args)
+    cost_params = process_cost_args(request.args)
     origin_coords = [float(c) for c in origin.split(',')]
     destination_coords = [float(c) for c in destination.split(',')]
 
