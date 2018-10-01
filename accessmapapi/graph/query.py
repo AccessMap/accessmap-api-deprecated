@@ -124,6 +124,8 @@ def closest_valid_startpoints(table, lon, lat, distance, cost_fun,
                                      for x, y in edge['geometry_utm'].coords])
                     edge['geometry'] = g2
                     edge.pop('geometry_utm')
+                    if 'geometry_utm' in box_edge:
+                        box_edge.pop('geometry_utm')
 
                     # FIXME: are initial_edge and original_edge redundant?
                     # TODO: Decide whether all of these keys are necessary

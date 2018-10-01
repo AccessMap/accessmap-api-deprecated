@@ -173,7 +173,7 @@ def dijkstra(origin, destination,
             cost = cost_fun(-1, -2, between)
             path_data['total_cost'] = cost
             feature = edge_to_feature(between, cost)
-            path_data.features.append(feature)
+            path_data['features'].append(feature)
             paths_data.append(path_data)
 
     if paths_data:
